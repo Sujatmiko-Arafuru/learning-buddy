@@ -1,0 +1,15 @@
+⚠️ PENTING: Setup File .env
+
+File .env sudah dibuat dengan connection string dari MongoDB Atlas Anda.
+
+LANGKAH PENTING:
+1. Buka file: learning-buddy/server/.env
+2. Cari baris: MONGO_URI=mongodb+srv://Sujatmiko:<db_password>@...
+3. GANTI <db_password> dengan password yang Anda buat untuk user "Sujatmiko" di MongoDB Atlas
+4. Simpan file
+
+Contoh setelah diganti:
+MONGO_URI=mongodb+srv://Sujatmiko:Password123@learning-buddy.jlyprnn.mongodb.net/?retryWrites=true&w=majority&appName=Learning-Buddy
+
+Setelah itu, Anda bisa menjalankan aplikasi!
+
