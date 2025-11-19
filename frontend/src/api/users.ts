@@ -35,5 +35,11 @@ export const usersApi = {
     const response = await api.get(`/users/email/${email}`);
     return response.data.data;
   },
+
+  // Update user
+  updateUser: async (userId: string, userData: Partial<User>): Promise<User> => {
+    const response = await api.put(`/users/${userId}`, userData);
+    return response.data.data;
+  },
 };
 

@@ -93,3 +93,55 @@ def get_progress_stats():
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
 
+@progress_bp.route('/progress/update', methods=['POST'])
+def update_progress():
+    """Update student progress"""
+    try:
+        data = request.get_json()
+        
+        required_fields = ['email', 'course_name']
+        for field in required_fields:
+            if field not in data:
+                return jsonify({'success': False, 'error': f'Missing required field: {field}'}), 400
+        
+        if not collections['student_progress']:
+            return jsonify({'success': False, 'error': 'Database not connected'}), 500
+        
+        # Find existing progress or create new
+        query = {
+            'email': data['email'],
+            'course_name': data['course_name']
+        }
+        
+        update_doc = {
+            'email': data['email'],
+            'course_name': data['course_name']
+        }
+        
+        if 'completed_tutorials' in data:
+            update_doc['completed_tutorials'] = data['completed_tutorials']
+        if 'active_tutorials' in data:
+            update_doc['active_tutorials'] = data['active_tutorials']
+        if 'is_graduated' in data:
+            update_doc['is_graduated'] = data['is_graduated']
+        if 'exam_score' in data:
+            update_doc['exam_score'] = data['exam_score']
+        
+        # Upsert progress
+        result = collections['student_progress'].update_one(
+            query,
+            {'$set': update_doc},
+            upsert=True
+        )
+        
+        # Get updated progress
+        updated_progress = collections['student_progress'].find_one(query, {'_id': 0})
+        
+        return jsonify({
+            'success': True,
+            'data': updated_progress
+        }), 200
+    
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+

@@ -21,12 +21,16 @@ from routes.learning_path import learning_path_bp
 from routes.users import users_bp
 from routes.progress import progress_bp
 from routes.recommendation import recommendation_bp
+from routes.questions import questions_bp
+from routes.chat import chat_bp
 
 # Register blueprints
 app.register_blueprint(learning_path_bp, url_prefix='/api')
 app.register_blueprint(users_bp, url_prefix='/api')
 app.register_blueprint(progress_bp, url_prefix='/api')
 app.register_blueprint(recommendation_bp, url_prefix='/api')
+app.register_blueprint(questions_bp, url_prefix='/api')
+app.register_blueprint(chat_bp, url_prefix='/api')
 
 @app.route('/api/health', methods=['GET'])
 def health_check():

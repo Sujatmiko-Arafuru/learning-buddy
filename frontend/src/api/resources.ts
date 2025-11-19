@@ -38,16 +38,27 @@ export interface StudentProgress {
 export const resourcesApi = {
   // Get interest questions for onboarding
   getInterestQuestions: async (): Promise<InterestQuestion[]> => {
-    // This would typically come from MongoDB, but for now we'll use a mock
-    // In production, create an endpoint: GET /api/questions/interest
-    return [];
+    try {
+      const response = await api.get('/questions/interest');
+      return response.data.data || [];
+    } catch (error) {
+      console.error('Error fetching interest questions:', error);
+      return [];
+    }
   },
 
   // Get tech questions for skill assessment
   getTechQuestions: async (category?: string, difficulty?: string): Promise<TechQuestion[]> => {
-    // This would typically come from MongoDB
-    // In production, create an endpoint: GET /api/questions/tech
-    return [];
+    try {
+      const params: any = {};
+      if (category) params.category = category;
+      if (difficulty) params.difficulty = difficulty;
+      const response = await api.get('/questions/tech', { params });
+      return response.data.data || [];
+    } catch (error) {
+      console.error('Error fetching tech questions:', error);
+      return [];
+    }
   },
 
   // Get student progress
@@ -60,6 +71,19 @@ export const resourcesApi = {
   getProgressStats: async (email: string) => {
     const response = await api.get('/progress/stats', { params: { email } });
     return response.data.data || {};
+  },
+
+  // Update progress
+  updateProgress: async (progressData: {
+    email: string;
+    course_name: string;
+    completed_tutorials?: number;
+    active_tutorials?: number;
+    is_graduated?: number;
+    exam_score?: number;
+  }) => {
+    const response = await api.post('/progress/update', progressData);
+    return response.data.data;
   },
 };
 

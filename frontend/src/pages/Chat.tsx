@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Card, Form, Button, InputGroup, Alert } from 'react-bootstrap';
 import Container from '../components/layout/Container';
+import { chatApi } from '../api/chat';
 
 interface Message {
   id: number;
@@ -34,6 +35,12 @@ const Chat: React.FC = () => {
     e.preventDefault();
     if (!input.trim()) return;
 
+    const userEmail = localStorage.getItem('userEmail');
+    if (!userEmail) {
+      alert('Silakan lakukan onboarding terlebih dahulu');
+      return;
+    }
+
     const userMessage: Message = {
       id: messages.length + 1,
       text: input,
@@ -42,42 +49,32 @@ const Chat: React.FC = () => {
     };
 
     setMessages([...messages, userMessage]);
+    const currentInput = input;
     setInput('');
     setLoading(true);
 
-    // Simulate bot response (in production, call API)
-    setTimeout(() => {
+    try {
+      // Call chat API
+      const response = await chatApi.sendMessage(userEmail, currentInput);
+      
       const botResponse: Message = {
         id: messages.length + 2,
-        text: generateBotResponse(input),
+        text: response.response,
         sender: 'bot',
         timestamp: new Date(),
       };
       setMessages((prev) => [...prev, botResponse]);
+    } catch (error: any) {
+      const errorResponse: Message = {
+        id: messages.length + 2,
+        text: 'Maaf, terjadi kesalahan saat memproses pertanyaan Anda. Silakan coba lagi.',
+        sender: 'bot',
+        timestamp: new Date(),
+      };
+      setMessages((prev) => [...prev, errorResponse]);
+    } finally {
       setLoading(false);
-    }, 1000);
-  };
-
-  const generateBotResponse = (userInput: string): string => {
-    const lowerInput = userInput.toLowerCase();
-
-    if (lowerInput.includes('progres') || lowerInput.includes('progress')) {
-      return 'Saya bisa membantu Anda melihat progres belajar. Coba tanyakan: "Bagaimana progres belajar saya?" atau "Kursus apa yang sudah saya selesaikan?"';
     }
-
-    if (lowerInput.includes('rekomendasi') || lowerInput.includes('kursus')) {
-      return 'Berdasarkan profil Anda, saya merekomendasikan beberapa kursus. Silakan cek di halaman Dashboard untuk melihat rekomendasi personal!';
-    }
-
-    if (lowerInput.includes('skill') || lowerInput.includes('keahlian')) {
-      return 'Saya bisa membantu menganalisis skill Anda. Coba tanyakan: "Skill apa yang sudah saya kuasai?" atau "Apa skill yang perlu saya tingkatkan?"';
-    }
-
-    if (lowerInput.includes('halo') || lowerInput.includes('hai')) {
-      return 'Halo! Senang bertemu dengan Anda. Saya di sini untuk membantu perjalanan belajar Anda. Ada yang ingin Anda tanyakan?';
-    }
-
-    return 'Terima kasih atas pertanyaannya! Fitur chat assistant ini masih dalam pengembangan. Untuk saat ini, silakan gunakan fitur Dashboard untuk melihat progres dan rekomendasi kursus Anda.';
   };
 
   return (

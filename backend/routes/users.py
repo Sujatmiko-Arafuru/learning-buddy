@@ -76,3 +76,43 @@ def get_user_by_email(email):
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
 
+@users_bp.route('/users/<user_id>', methods=['PUT'])
+def update_user(user_id):
+    """Update user preferences and onboarding status"""
+    try:
+        data = request.get_json()
+        
+        if not collections['users']:
+            return jsonify({'success': False, 'error': 'Database not connected'}), 500
+        
+        from bson import ObjectId
+        query = {'_id': ObjectId(user_id)}
+        
+        # Build update document
+        update_doc = {}
+        if 'onboarding_completed' in data:
+            update_doc['onboarding_completed'] = data['onboarding_completed']
+        if 'preferences' in data:
+            update_doc['preferences'] = data['preferences']
+        if 'skill_assessment' in data:
+            update_doc['skill_assessment'] = data['skill_assessment']
+        if 'current_learning_path' in data:
+            update_doc['current_learning_path'] = data['current_learning_path']
+        
+        if not update_doc:
+            return jsonify({'success': False, 'error': 'No fields to update'}), 400
+        
+        result = collections['users'].update_one(query, {'$set': update_doc})
+        
+        if result.matched_count == 0:
+            return jsonify({'success': False, 'error': 'User not found'}), 404
+        
+        # Return updated user
+        updated_user = collections['users'].find_one(query)
+        updated_user['_id'] = str(updated_user['_id'])
+        
+        return jsonify({'success': True, 'data': updated_user}), 200
+    
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+

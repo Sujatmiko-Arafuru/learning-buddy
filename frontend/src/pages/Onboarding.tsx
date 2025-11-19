@@ -3,6 +3,7 @@ import { Card, Button, Form, ProgressBar, Alert } from 'react-bootstrap';
 import Container from '../components/layout/Container';
 import { usersApi } from '../api/users';
 import { recommendationApi } from '../api/recommendation';
+import { resourcesApi } from '../api/resources';
 import { useNavigate } from 'react-router-dom';
 
 interface InterestQuestion {
@@ -20,30 +21,69 @@ const Onboarding: React.FC = () => {
   const [currentQuestion, setCurrentQuestion] = useState(0);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [interestQuestions, setInterestQuestions] = useState<InterestQuestion[]>([]);
 
-  // Mock interest questions (in production, fetch from API)
-  const interestQuestions: InterestQuestion[] = [
-    {
-      question_desc: 'Mana kegiatan yang paling relate denganmu di pagi hari?',
-      option_text: 'Mencoba membuat menu sarapan',
-      category: 'Mobile Development',
-    },
-    {
-      question_desc: 'Mana kegiatan yang paling relate denganmu di pagi hari?',
-      option_text: 'Baca atau lihat info viral dari berbagai sumber',
-      category: 'Artificial Intelligence',
-    },
-    {
-      question_desc: 'Mana kegiatan yang paling relate denganmu di pagi hari?',
-      option_text: 'Membersihkan kamar',
-      category: 'Cloud Computing',
-    },
-    {
-      question_desc: 'Mana kegiatan yang paling relate denganmu di pagi hari?',
-      option_text: 'Coret-coret atau menulis di buku',
-      category: 'Web Development',
-    },
-  ];
+  // Load interest questions from API
+  useEffect(() => {
+    const loadQuestions = async () => {
+      try {
+        const questions = await resourcesApi.getInterestQuestions();
+        if (questions.length > 0) {
+          setInterestQuestions(questions);
+        } else {
+          // Fallback to mock data if API returns empty
+          setInterestQuestions([
+            {
+              question_desc: 'Mana kegiatan yang paling relate denganmu di pagi hari?',
+              option_text: 'Mencoba membuat menu sarapan',
+              category: 'Mobile Development',
+            },
+            {
+              question_desc: 'Mana kegiatan yang paling relate denganmu di pagi hari?',
+              option_text: 'Baca atau lihat info viral dari berbagai sumber',
+              category: 'Artificial Intelligence',
+            },
+            {
+              question_desc: 'Mana kegiatan yang paling relate denganmu di pagi hari?',
+              option_text: 'Membersihkan kamar',
+              category: 'Cloud Computing',
+            },
+            {
+              question_desc: 'Mana kegiatan yang paling relate denganmu di pagi hari?',
+              option_text: 'Coret-coret atau menulis di buku',
+              category: 'Web Development',
+            },
+          ]);
+        }
+      } catch (error) {
+        console.error('Error loading questions:', error);
+        // Use mock data on error
+        setInterestQuestions([
+          {
+            question_desc: 'Mana kegiatan yang paling relate denganmu di pagi hari?',
+            option_text: 'Mencoba membuat menu sarapan',
+            category: 'Mobile Development',
+          },
+          {
+            question_desc: 'Mana kegiatan yang paling relate denganmu di pagi hari?',
+            option_text: 'Baca atau lihat info viral dari berbagai sumber',
+            category: 'Artificial Intelligence',
+          },
+          {
+            question_desc: 'Mana kegiatan yang paling relate denganmu di pagi hari?',
+            option_text: 'Membersihkan kamar',
+            category: 'Cloud Computing',
+          },
+          {
+            question_desc: 'Mana kegiatan yang paling relate denganmu di pagi hari?',
+            option_text: 'Coret-coret atau menulis di buku',
+            category: 'Web Development',
+          },
+        ]);
+      }
+    };
+    loadQuestions();
+  }, []);
 
   const groupedQuestions = interestQuestions.reduce((acc, q) => {
     if (!acc[q.question_desc]) {
@@ -90,6 +130,20 @@ const Onboarding: React.FC = () => {
         interest_answers: interestAnswers,
         tech_answers: [],
       });
+
+      // Update user preferences
+      if (user._id && recommendations.primary_interest) {
+        try {
+          await usersApi.updateUser(user._id, {
+            onboarding_completed: true,
+            preferences: {
+              preferred_learning_path_id: recommendations.recommended_learning_paths[0],
+            },
+          });
+        } catch (err) {
+          console.error('Error updating user:', err);
+        }
+      }
 
       // Store user info
       localStorage.setItem('userEmail', email);

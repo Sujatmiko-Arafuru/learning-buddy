@@ -8,7 +8,7 @@ import os
 import sys
 
 # Add parent directory to path
-sys.path.append(os.path.join(os.path.dirname(__file__), '../../learning-buddy/backend'))
+sys.path.append(os.path.join(os.path.dirname(__file__), '../../backend'))
 
 from db import collections
 
