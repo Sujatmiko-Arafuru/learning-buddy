@@ -24,7 +24,7 @@ def get_progress():
             query['email'] = email
         
         # Get user progress from student_progress collection
-        if collections['student_progress']:
+        if collections['student_progress'] is not None:
             progress_data = list(collections['student_progress'].find(
                 query if email else {},
                 {'_id': 0}
@@ -32,7 +32,7 @@ def get_progress():
             
             # Also get user info if available
             user_info = None
-            if collections['users']:
+            if collections['users'] is not None:
                 user = collections['users'].find_one(query)
                 if user:
                     user_info = {
@@ -64,7 +64,7 @@ def get_progress_stats():
         return jsonify({'success': False, 'error': 'email required'}), 400
     
     try:
-        if collections['student_progress']:
+        if collections['student_progress'] is not None:
             # Get all progress for this user
             progress_list = list(collections['student_progress'].find(
                 {'email': email},
@@ -104,7 +104,7 @@ def update_progress():
             if field not in data:
                 return jsonify({'success': False, 'error': f'Missing required field: {field}'}), 400
         
-        if not collections['student_progress']:
+        if collections['student_progress'] is None:
             return jsonify({'success': False, 'error': 'Database not connected'}), 500
         
         # Find existing progress or create new

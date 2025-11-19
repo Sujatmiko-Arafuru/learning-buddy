@@ -47,7 +47,7 @@ def chat():
         
         # Get user data
         user = None
-        if collections['users']:
+        if collections['users'] is not None:
             user = collections['users'].find_one({'email': email})
         
         if not user:
@@ -61,7 +61,7 @@ def chat():
         
         # Get user progress
         user_progress = []
-        if collections['student_progress']:
+        if collections['student_progress'] is not None:
             user_progress = list(collections['student_progress'].find(
                 {'email': email},
                 {'_id': 0}

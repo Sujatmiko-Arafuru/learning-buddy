@@ -21,7 +21,7 @@ def create_user():
                 return jsonify({'success': False, 'error': f'Missing required field: {field}'}), 400
         
         # Check if user already exists
-        if collections['users']:
+        if collections['users'] is not None:
             existing_user = collections['users'].find_one({'email': data['email']})
             if existing_user:
                 return jsonify({'success': False, 'error': 'User with this email already exists'}), 400
@@ -38,7 +38,7 @@ def create_user():
         }
         
         # Insert user
-        if collections['users']:
+        if collections['users'] is not None:
             result = collections['users'].insert_one(user_doc)
             user_doc['_id'] = str(result.inserted_id)
         
@@ -51,7 +51,7 @@ def create_user():
 def get_user(user_id):
     """Get user by ID"""
     try:
-        if collections['users']:
+        if collections['users'] is not None:
             from bson import ObjectId
             user = collections['users'].find_one({'_id': ObjectId(user_id)})
             if user:
@@ -66,7 +66,7 @@ def get_user(user_id):
 def get_user_by_email(email):
     """Get user by email"""
     try:
-        if collections['users']:
+        if collections['users'] is not None:
             user = collections['users'].find_one({'email': email})
             if user:
                 user['_id'] = str(user['_id'])
@@ -82,7 +82,7 @@ def update_user(user_id):
     try:
         data = request.get_json()
         
-        if not collections['users']:
+        if collections['users'] is None:
             return jsonify({'success': False, 'error': 'Database not connected'}), 500
         
         from bson import ObjectId

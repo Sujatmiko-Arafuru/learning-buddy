@@ -33,7 +33,7 @@ def get_learning_paths():
     except Exception as e:
         # Fallback to MongoDB if Supabase fails
         try:
-            if collections['learning_paths']:
+            if collections['learning_paths'] is not None:
                 data = list(collections['learning_paths'].find({}, {'_id': 0}))
                 return jsonify({'success': True, 'data': data, 'source': 'mongodb'}), 200
         except:
@@ -58,7 +58,7 @@ def get_courses():
     except Exception as e:
         # Fallback to MongoDB
         try:
-            if collections['courses']:
+            if collections['courses'] is not None:
                 query = {'learning_path_id': int(lp_id)} if lp_id else {}
                 data = list(collections['courses'].find(query, {'_id': 0}))
                 return jsonify({'success': True, 'data': data, 'source': 'mongodb'}), 200
@@ -84,7 +84,7 @@ def get_tutorials():
     except Exception as e:
         # Fallback to MongoDB
         try:
-            if collections['tutorials']:
+            if collections['tutorials'] is not None:
                 query = {'course_id': int(course_id)} if course_id else {}
                 data = list(collections['tutorials'].find(query, {'_id': 0}))
                 return jsonify({'success': True, 'data': data, 'source': 'mongodb'}), 200
@@ -104,7 +104,7 @@ def get_course_levels():
     except Exception as e:
         # Fallback to MongoDB
         try:
-            if collections['course_levels']:
+            if collections['course_levels'] is not None:
                 data = list(collections['course_levels'].find({}, {'_id': 0}))
                 return jsonify({'success': True, 'data': data, 'source': 'mongodb'}), 200
         except:

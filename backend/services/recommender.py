@@ -12,7 +12,7 @@ class RecommenderService:
     
     def load_skill_keywords(self):
         """Load skill keywords from database"""
-        if collections['skill_keywords']:
+        if collections['skill_keywords'] is not None:
             keywords = list(collections['skill_keywords'].find({}))
             for kw in keywords:
                 keyword_id = str(kw.get('id', ''))
@@ -37,7 +37,7 @@ class RecommenderService:
         
         # Get all courses
         all_courses = []
-        if collections['courses']:
+        if collections['courses'] is not None:
             all_courses = list(collections['courses'].find({}, {'_id': 0}))
         
         # Score courses based on user needs
@@ -111,7 +111,7 @@ class RecommenderService:
         
         # Get courses for recommended learning paths
         recommended_courses = []
-        if collections['courses']:
+        if collections['courses'] is not None:
             courses = list(collections['courses'].find(
                 {'learning_path_id': {'$in': recommended_lp_ids}},
                 {'_id': 0}
@@ -232,7 +232,7 @@ class RecommenderService:
         
         # Get learning path details
         recommended_lps = []
-        if collections['learning_paths']:
+        if collections['learning_paths'] is not None:
             lps = list(collections['learning_paths'].find(
                 {'learning_path_id': {'$in': list(lp_ids)}},
                 {'_id': 0}

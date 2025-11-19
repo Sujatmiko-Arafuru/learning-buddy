@@ -10,7 +10,7 @@ questions_bp = Blueprint('questions', __name__)
 def get_interest_questions():
     """Get interest questions for onboarding"""
     try:
-        if collections['current_interest_questions']:
+        if collections['current_interest_questions'] is not None:
             questions = list(collections['current_interest_questions'].find({}, {'_id': 0}))
             return jsonify({'success': True, 'data': questions}), 200
         return jsonify({'success': False, 'error': 'Database not connected'}), 500
@@ -30,7 +30,7 @@ def get_tech_questions():
         if difficulty:
             query['difficulty'] = difficulty
         
-        if collections['current_tech_questions']:
+        if collections['current_tech_questions'] is not None:
             questions = list(collections['current_tech_questions'].find(query, {'_id': 0}))
             return jsonify({'success': True, 'data': questions}), 200
         return jsonify({'success': False, 'error': 'Database not connected'}), 500

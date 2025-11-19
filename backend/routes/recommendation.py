@@ -27,7 +27,7 @@ def get_recommendation():
             query['email'] = email
         
         user = None
-        if collections['users']:
+        if collections['users'] is not None:
             user = collections['users'].find_one(query)
         
         if not user:
@@ -35,7 +35,7 @@ def get_recommendation():
         
         # Get user progress
         user_progress = []
-        if collections['student_progress']:
+        if collections['student_progress'] is not None:
             user_progress = list(collections['student_progress'].find(
                 {'email': user.get('email')},
                 {'_id': 0}
