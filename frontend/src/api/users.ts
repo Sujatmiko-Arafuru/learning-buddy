@@ -12,10 +12,35 @@ export interface User {
   preferences?: {
     preferred_learning_path_id?: number;
     preferred_difficulty?: string;
+    map_interest_choices?: Array<{ id: number; name: string }>;
+    map_interest_mode?: 'manual' | 'guided';
   };
   current_learning_path?: number;
   skill_assessment?: Record<string, number>;
+  interest_assessment?: {
+    current_interest_answers?: string[];
+  };
+  token?: string;
 }
+
+export interface AuthCredentials {
+  email: string;
+  password: string;
+}
+
+export interface RegisterPayload extends AuthCredentials {
+  name: string;
+}
+
+export const loginUser = async (credentials: AuthCredentials) => {
+  const response = await api.post('/auth/login', credentials);
+  return response.data.data as User & { token: string };
+};
+
+export const registerUser = async (payload: RegisterPayload) => {
+  const response = await api.post('/auth/register', payload);
+  return response.data.data as User;
+};
 
 export const usersApi = {
   // Register new user

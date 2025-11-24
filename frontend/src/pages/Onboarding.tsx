@@ -23,6 +23,16 @@ const Onboarding: React.FC = () => {
   const [error, setError] = useState('');
   const [interestQuestions, setInterestQuestions] = useState<InterestQuestion[]>([]);
 
+  useEffect(() => {
+    const loggedInEmail =
+      localStorage.getItem('userEmail') ||
+      localStorage.getItem('email') ||
+      localStorage.getItem('user_email');
+    if (loggedInEmail) {
+      navigate('/personalize', { replace: true });
+    }
+  }, [navigate]);
+
   // Load interest questions from API
   useEffect(() => {
     const loadQuestions = async () => {

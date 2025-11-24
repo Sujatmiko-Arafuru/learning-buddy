@@ -4,9 +4,104 @@ Routes for user management
 from flask import Blueprint, jsonify, request
 from db import collections
 from datetime import datetime
-import hashlib
+from bson import ObjectId
+import secrets
 
 users_bp = Blueprint('users', __name__)
+
+
+def _get_json():
+    data = request.get_json(silent=True)
+    return data or {}
+
+
+def _sanitize_user(user_doc):
+    """Remove sensitive fields before sending user data to clients."""
+    if not user_doc:
+        return user_doc
+    user_doc = dict(user_doc)
+    user_doc.pop('password_hash', None)
+    user_doc.pop('auth_token', None)
+    if '_id' in user_doc:
+        user_doc['_id'] = str(user_doc['_id'])
+    return user_doc
+
+
+@users_bp.route('/auth/register', methods=['POST'])
+def register_user():
+    """User registration endpoint with password hashing."""
+    if collections['users'] is None:
+        return jsonify({'success': False, 'error': 'Database not connected'}), 500
+
+    data = _get_json()
+    name = data.get('name', '').strip()
+    email = data.get('email', '').lower().strip()
+    password = data.get('password', '')
+
+    if not name or not email or not password:
+        return jsonify({'success': False, 'error': 'Name, email, and password are required'}), 400
+
+    if len(password) < 6:
+        return jsonify({'success': False, 'error': 'Password must be at least 6 characters'}), 400
+
+    existing_user = collections['users'].find_one({'email': email})
+    if existing_user:
+        return jsonify({'success': False, 'error': 'User with this email already exists'}), 400
+
+    user_doc = {
+        'name': name,
+        'email': email,
+        'password': password,
+        'created_at': datetime.utcnow().isoformat(),
+        'onboarding_completed': False,
+        'preferences': {},
+        'current_learning_path': None,
+        'skill_assessment': {},
+        'last_login': None,
+        'auth_token': None,
+    }
+
+    result = collections['users'].insert_one(user_doc)
+    user_doc['_id'] = result.inserted_id
+
+    return jsonify({
+        'success': True,
+        'message': 'Registration successful',
+        'data': _sanitize_user(user_doc),
+    }), 201
+
+
+@users_bp.route('/auth/login', methods=['POST'])
+def login_user():
+    """Authenticate user credentials and issue a session token."""
+    if collections['users'] is None:
+        return jsonify({'success': False, 'error': 'Database not connected'}), 500
+
+    data = _get_json()
+    email = data.get('email', '').lower().strip()
+    password = data.get('password', '')
+
+    if not email or not password:
+        return jsonify({'success': False, 'error': 'Email and password are required'}), 400
+
+    user = collections['users'].find_one({'email': email})
+    if not user or user.get('password') != password:
+        return jsonify({'success': False, 'error': 'Invalid email or password'}), 401
+
+    token = secrets.token_urlsafe(32)
+    collections['users'].update_one(
+        {'_id': user['_id']},
+        {'$set': {'last_login': datetime.utcnow().isoformat(), 'auth_token': token}}
+    )
+
+    sanitized_user = _sanitize_user(user)
+    sanitized_user['token'] = token
+
+    return jsonify({
+        'success': True,
+        'message': 'Login successful',
+        'data': sanitized_user,
+    }), 200
 
 @users_bp.route('/users', methods=['POST'])
 def create_user():
@@ -52,11 +147,9 @@ def get_user(user_id):
     """Get user by ID"""
     try:
         if collections['users'] is not None:
-            from bson import ObjectId
             user = collections['users'].find_one({'_id': ObjectId(user_id)})
             if user:
-                user['_id'] = str(user['_id'])
-                return jsonify({'success': True, 'data': user}), 200
+                return jsonify({'success': True, 'data': _sanitize_user(user)}), 200
             return jsonify({'success': False, 'error': 'User not found'}), 404
         return jsonify({'success': False, 'error': 'Database not connected'}), 500
     except Exception as e:
@@ -69,8 +162,7 @@ def get_user_by_email(email):
         if collections['users'] is not None:
             user = collections['users'].find_one({'email': email})
             if user:
-                user['_id'] = str(user['_id'])
-                return jsonify({'success': True, 'data': user}), 200
+                return jsonify({'success': True, 'data': _sanitize_user(user)}), 200
             return jsonify({'success': False, 'error': 'User not found'}), 404
         return jsonify({'success': False, 'error': 'Database not connected'}), 500
     except Exception as e:
@@ -109,9 +201,8 @@ def update_user(user_id):
         
         # Return updated user
         updated_user = collections['users'].find_one(query)
-        updated_user['_id'] = str(updated_user['_id'])
         
-        return jsonify({'success': True, 'data': updated_user}), 200
+        return jsonify({'success': True, 'data': _sanitize_user(updated_user)}), 200
     
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500

@@ -1,22 +1,31 @@
 import React from 'react';
-import { Navbar as BootstrapNavbar, Nav, Container } from 'react-bootstrap';
+import { Navbar as BootstrapNavbar, Nav, Container, Button } from 'react-bootstrap';
 import { Link, useNavigate } from 'react-router-dom';
+import { FaGraduationCap } from 'react-icons/fa';
 
 const Navbar: React.FC = () => {
   const navigate = useNavigate();
-  const userEmail = localStorage.getItem('userEmail');
+  const userEmail =
+    localStorage.getItem('userEmail') ||
+    localStorage.getItem('email') ||
+    localStorage.getItem('user_email');
 
   const handleLogout = () => {
     localStorage.removeItem('userEmail');
     localStorage.removeItem('token');
+    localStorage.removeItem('email');
+    localStorage.removeItem('name');
+    localStorage.removeItem('user_email');
+    localStorage.removeItem('userName');
     navigate('/');
   };
 
   return (
     <BootstrapNavbar bg="primary" variant="dark" expand="lg" className="mb-4">
       <Container>
-        <BootstrapNavbar.Brand as={Link} to="/">
-          🎓 Learning Buddy
+        <BootstrapNavbar.Brand as={Link} to="/" className="d-flex align-items-center gap-2">
+          <FaGraduationCap aria-hidden="true" />
+          <span>Learning Buddy</span>
         </BootstrapNavbar.Brand>
         <BootstrapNavbar.Toggle aria-controls="basic-navbar-nav" />
         <BootstrapNavbar.Collapse id="basic-navbar-nav">
@@ -31,20 +40,25 @@ const Navbar: React.FC = () => {
               Chat Assistant
             </Nav.Link>
           </Nav>
-          <Nav>
+          <Nav className="align-items-center">
             {userEmail ? (
               <>
                 <Nav.Link disabled className="text-light">
                   {userEmail}
                 </Nav.Link>
-                <Nav.Link onClick={handleLogout} className="text-light">
+                <Button variant="outline-light" size="sm" onClick={handleLogout}>
                   Logout
-                </Nav.Link>
+                </Button>
               </>
             ) : (
-              <Nav.Link as={Link} to="/onboarding" className="text-light">
-                Mulai Belajar
-              </Nav.Link>
+              <div className="d-flex gap-2">
+                <Button variant="light" size="sm" onClick={() => navigate('/login')}>
+                  Login
+                </Button>
+                <Button variant="outline-light" size="sm" onClick={() => navigate('/register')}>
+                  Register
+                </Button>
+              </div>
             )}
           </Nav>
         </BootstrapNavbar.Collapse>

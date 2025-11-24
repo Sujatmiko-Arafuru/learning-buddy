@@ -1,14 +1,19 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Card, Row, Col, ProgressBar, Alert, Spinner, Button } from 'react-bootstrap';
+import { FaHandPaper } from 'react-icons/fa';
 import Container from '../components/layout/Container';
 import { resourcesApi } from '../api/resources';
 import { recommendationApi, RecommendedCourse } from '../api/recommendation';
+import { learningPathApi, LearningPath, Course } from '../api/learningPath';
 
 const Dashboard: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState<any>(null);
   const [recommendations, setRecommendations] = useState<RecommendedCourse[]>([]);
   const [error, setError] = useState('');
+  const [learningPaths, setLearningPaths] = useState<LearningPath[]>([]);
+  const [courses, setCourses] = useState<Course[]>([]);
+  const [learningDataLoading, setLearningDataLoading] = useState(true);
 
   const userEmail = localStorage.getItem('userEmail');
   const userName = localStorage.getItem('userName') || 'Pengguna';
@@ -26,13 +31,17 @@ const Dashboard: React.FC = () => {
     try {
       setLoading(true);
       
-      // Load progress stats
-      const progressStats = await resourcesApi.getProgressStats(userEmail!);
+      const [progressStats, recs, lpData, courseData] = await Promise.all([
+        resourcesApi.getProgressStats(userEmail!),
+        recommendationApi.getRecommendations(userEmail!),
+        learningPathApi.getLearningPaths(),
+        learningPathApi.getCourses(),
+      ]);
       setStats(progressStats);
-
-      // Load recommendations
-      const recs = await recommendationApi.getRecommendations(userEmail!);
       setRecommendations(recs.recommended_courses || []);
+      setLearningPaths(lpData);
+      setCourses(courseData);
+      setLearningDataLoading(false);
     } catch (err: any) {
       // Use mock data if API fails (for UI preview)
       setStats({
@@ -63,12 +72,26 @@ const Dashboard: React.FC = () => {
           reason: 'Mengembangkan skill AI ke level lebih tinggi'
         }
       ]);
+      setLearningPaths([]);
+      setCourses([]);
+      setLearningDataLoading(false);
       // Don't show error for UI preview
       // setError(err.response?.data?.error || 'Gagal memuat data dashboard');
     } finally {
       setLoading(false);
     }
   };
+
+  const coursesByPath = useMemo(() => {
+    return courses.reduce((acc, course) => {
+      const lpId = course.learning_path_id;
+      if (!acc[lpId]) {
+        acc[lpId] = [];
+      }
+      acc[lpId].push(course);
+      return acc;
+    }, {} as Record<number, Course[]>);
+  }, [courses]);
 
   if (loading) {
     return (
@@ -84,7 +107,9 @@ const Dashboard: React.FC = () => {
 
   return (
     <Container>
-      <h2 className="mb-4">Selamat Datang, {userName}! 👋</h2>
+      <h2 className="mb-4">
+        Selamat Datang, {userName}! <FaHandPaper className="text-primary ms-2" aria-hidden="true" />
+      </h2>
 
       {error && <Alert variant="danger">{error}</Alert>}
 
@@ -156,6 +181,57 @@ const Dashboard: React.FC = () => {
           </Card.Body>
         </Card>
       )}
+
+      {/* Learning Paths & Courses */}
+      <Card className="mb-4">
+        <Card.Header>
+          <h5 className="mb-0">Learning Path & Kursus</h5>
+        </Card.Header>
+        <Card.Body>
+          {learningDataLoading ? (
+            <div className="text-center py-4">
+              <Spinner animation="border" />
+            </div>
+          ) : learningPaths.length === 0 ? (
+            <Alert variant="info">Belum ada data learning path yang tersedia.</Alert>
+          ) : (
+            learningPaths.map((path) => {
+              const pathCourses = coursesByPath[path.learning_path_id] || [];
+              return (
+                <div key={path.learning_path_id} className="mb-4">
+                  <div className="d-flex justify-content-between align-items-center mb-2">
+                    <h6 className="mb-0">{path.learning_path_name}</h6>
+                    <span className="text-muted small">{pathCourses.length} kursus</span>
+                  </div>
+                  {pathCourses.length === 0 ? (
+                    <p className="text-muted small fst-italic">Belum ada kursus pada jalur ini.</p>
+                  ) : (
+                    <ul className="list-group">
+                      {pathCourses.map((course) => (
+                        <li
+                          key={course.course_id}
+                          className="list-group-item d-flex justify-content-between align-items-center"
+                        >
+                          <div>
+                            <strong>{course.course_name}</strong>
+                            <div className="text-muted small">
+                              Level: {course.course_level_str || '-'} •{' '}
+                              {course.hours_to_study ? `${course.hours_to_study} jam` : 'Durasi tidak tersedia'}
+                            </div>
+                          </div>
+                          <Button variant="outline-primary" size="sm">
+                            Lihat
+                          </Button>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+              );
+            })
+          )}
+        </Card.Body>
+      </Card>
 
       {/* Recommendations */}
       <Card>

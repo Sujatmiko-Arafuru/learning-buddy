@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Card, Form, Button, InputGroup, Alert } from 'react-bootstrap';
+import { FaComments } from 'react-icons/fa';
 import Container from '../components/layout/Container';
 import { chatApi } from '../api/chat';
 
@@ -83,7 +84,10 @@ const Chat: React.FC = () => {
 
       <Card>
         <Card.Header>
-          <h5 className="mb-0">💬 Learning Buddy Chat</h5>
+          <h5 className="mb-0">
+            <FaComments className="me-2 text-primary" aria-hidden="true" />
+            Learning Buddy Chat
+          </h5>
         </Card.Header>
         <Card.Body style={{ height: '500px', display: 'flex', flexDirection: 'column' }}>
           <div
