@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Card, Row, Col, Form, Spinner, Alert, Badge } from 'react-bootstrap';
 import Container from '../components/layout/Container';
 import { learningPathApi, LearningPath, Course } from '../api/learningPath';
+import { usersApi } from '../api/users';
 
 const Catalog: React.FC = () => {
   const [loading, setLoading] = useState(true);
@@ -9,6 +10,9 @@ const Catalog: React.FC = () => {
   const [courses, setCourses] = useState<Course[]>([]);
   const [selectedLp, setSelectedLp] = useState<number | null>(null);
   const [error, setError] = useState('');
+  const [userSelectedLpIds, setUserSelectedLpIds] = useState<number[]>([]);
+
+  const userEmail = localStorage.getItem('email') || localStorage.getItem('userEmail');
 
   useEffect(() => {
     loadData();
@@ -18,18 +22,51 @@ const Catalog: React.FC = () => {
     if (selectedLp) {
       loadCourses(selectedLp);
     } else {
-      loadCourses();
+      // Load courses based on user's selected learning paths
+      if (userSelectedLpIds.length > 0) {
+        loadCourses(undefined, userSelectedLpIds);
+      } else {
+        loadCourses();
+      }
     }
-  }, [selectedLp]);
+  }, [selectedLp, userSelectedLpIds]);
 
   const loadData = async () => {
     try {
       setLoading(true);
+      
+      // Load learning paths
       const lps = await learningPathApi.getLearningPaths();
       setLearningPaths(lps);
-      const allCourses = await learningPathApi.getCourses();
-      setCourses(allCourses);
+      
+      // Load user preferences to get selected learning path IDs
+      if (userEmail) {
+        try {
+          const user = await usersApi.getUserByEmail(userEmail);
+          const selectedIds = user?.preferences?.selected_learning_path_ids || [];
+          if (selectedIds.length > 0) {
+            setUserSelectedLpIds(selectedIds);
+            // Load courses for user's selected learning paths
+            const courseData = await learningPathApi.getCourses(undefined, selectedIds);
+            setCourses(courseData);
+          } else {
+            // No selected learning paths, load all courses
+            const allCourses = await learningPathApi.getCourses();
+            setCourses(allCourses);
+          }
+        } catch (err) {
+          console.error('Failed to load user preferences:', err);
+          // Fallback: load all courses
+          const allCourses = await learningPathApi.getCourses();
+          setCourses(allCourses);
+        }
+      } else {
+        // No user email, load all courses
+        const allCourses = await learningPathApi.getCourses();
+        setCourses(allCourses);
+      }
     } catch (err: any) {
+      setError(err.response?.data?.error || 'Gagal memuat data katalog');
       // Use mock data if API fails (for UI preview)
       setLearningPaths([
         { learning_path_id: 1, learning_path_name: 'AI Engineer' },
@@ -41,24 +78,18 @@ const Catalog: React.FC = () => {
         { course_id: 2, learning_path_id: 1, course_name: 'Belajar Fundamental Deep Learning', course_level_str: 'Menengah', hours_to_study: 110 },
         { course_id: 3, learning_path_id: 2, course_name: 'Belajar Fundamental Aplikasi Android', course_level_str: 'Menengah', hours_to_study: 140 }
       ]);
-      // Don't show error for UI preview
-      // setError(err.response?.data?.error || 'Gagal memuat data katalog');
     } finally {
       setLoading(false);
     }
   };
 
-  const loadCourses = async (lpId?: number) => {
+  const loadCourses = async (lpId?: number, lpIds?: number[]) => {
     try {
-      const courseData = await learningPathApi.getCourses(lpId);
+      const courseData = await learningPathApi.getCourses(lpId, lpIds);
       setCourses(courseData);
     } catch (err: any) {
-      // Use mock data if API fails (for UI preview)
-      setCourses([
-        { course_id: 1, learning_path_id: 1, course_name: 'Belajar Dasar AI', course_level_str: 'Dasar', hours_to_study: 10 },
-        { course_id: 2, learning_path_id: 1, course_name: 'Belajar Fundamental Deep Learning', course_level_str: 'Menengah', hours_to_study: 110 }
-      ]);
-      // Don't show error for UI preview
+      setError(err.response?.data?.error || 'Gagal memuat course');
+      console.error('Failed to load courses:', err);
     }
   };
 
@@ -85,19 +116,33 @@ const Catalog: React.FC = () => {
         <Card.Body>
           <Form>
             <Form.Group>
-              <Form.Label>Filter berdasarkan Learning Path:</Form.Label>
+              <Form.Label>
+                Filter berdasarkan Learning Path:
+                {userSelectedLpIds.length > 0 && (
+                  <Badge bg="info" className="ms-2">
+                    Menampilkan course dari {userSelectedLpIds.length} Learning Path yang dipilih
+                  </Badge>
+                )}
+              </Form.Label>
               <Form.Select
                 value={selectedLp || ''}
                 onChange={(e) =>
                   setSelectedLp(e.target.value ? parseInt(e.target.value) : null)
                 }
               >
-                <option value="">Semua Learning Path</option>
-                {learningPaths.map((lp) => (
-                  <option key={lp.learning_path_id} value={lp.learning_path_id}>
-                    {lp.learning_path_name}
-                  </option>
-                ))}
+                <option value="">
+                  {userSelectedLpIds.length > 0 
+                    ? `Semua Learning Path yang Dipilih (${userSelectedLpIds.length})`
+                    : 'Semua Learning Path'}
+                </option>
+                {learningPaths
+                  .filter(lp => !userSelectedLpIds.length || userSelectedLpIds.includes(lp.learning_path_id))
+                  .map((lp) => (
+                    <option key={lp.learning_path_id} value={lp.learning_path_id}>
+                      {lp.learning_path_name}
+                      {userSelectedLpIds.includes(lp.learning_path_id) && ' ✓'}
+                    </option>
+                  ))}
               </Form.Select>
             </Form.Group>
           </Form>

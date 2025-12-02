@@ -20,10 +20,18 @@ def _sanitize_user(user_doc):
     if not user_doc:
         return user_doc
     user_doc = dict(user_doc)
+    # Remove sensitive fields
+    user_doc.pop('password', None)
     user_doc.pop('password_hash', None)
     user_doc.pop('auth_token', None)
+    # Convert ObjectId to string
     if '_id' in user_doc:
         user_doc['_id'] = str(user_doc['_id'])
+    # Ensure essential fields exist
+    if 'email' not in user_doc:
+        user_doc['email'] = ''
+    if 'name' not in user_doc:
+        user_doc['name'] = ''
     return user_doc
 
 
@@ -79,13 +87,23 @@ def login_user():
 
     data = _get_json()
     email = data.get('email', '').lower().strip()
-    password = data.get('password', '')
+    password = data.get('password', '').strip()  # Strip whitespace from password
 
     if not email or not password:
         return jsonify({'success': False, 'error': 'Email and password are required'}), 400
 
     user = collections['users'].find_one({'email': email})
-    if not user or user.get('password') != password:
+    if not user:
+        return jsonify({'success': False, 'error': 'Invalid email or password'}), 401
+    
+    # Compare passwords (strip both for consistency)
+    stored_password = str(user.get('password', '')).strip()
+    
+    # Debug logging
+    print(f"[LOGIN] Attempt - Email: {email}")
+    print(f"[LOGIN] Password match: {stored_password == password}")
+    
+    if stored_password != password:
         return jsonify({'success': False, 'error': 'Invalid email or password'}), 401
 
     token = secrets.token_urlsafe(32)
@@ -94,8 +112,12 @@ def login_user():
         {'$set': {'last_login': datetime.utcnow().isoformat(), 'auth_token': token}}
     )
 
+    # Create sanitized user data
     sanitized_user = _sanitize_user(user)
+    # Add token and ensure essential fields
     sanitized_user['token'] = token
+    sanitized_user['email'] = user.get('email', '')
+    sanitized_user['name'] = user.get('name', '')
 
     return jsonify({
         'success': True,

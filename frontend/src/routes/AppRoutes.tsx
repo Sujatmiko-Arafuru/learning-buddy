@@ -7,6 +7,8 @@ import Chat from '../pages/Chat';
 import Login from '../pages/Login';
 import Register from '../pages/Register';
 import Personalization from '../pages/Personalization';
+import Assessment from '../pages/Assessment';
+import ProtectedRoute from '../components/ProtectedRoute';
 
 const AppRoutes: React.FC = () => {
   return (
@@ -14,11 +16,54 @@ const AppRoutes: React.FC = () => {
       <Route path="/" element={<Navigate to="/login" replace />} />
       <Route path="/login" element={<Login />} />
       <Route path="/register" element={<Register />} />
-      <Route path="/personalize" element={<Personalization />} />
-      <Route path="/onboarding" element={<Onboarding />} />
-      <Route path="/dashboard" element={<Dashboard />} />
-      <Route path="/catalog" element={<Catalog />} />
-      <Route path="/chat" element={<Chat />} />
+      <Route 
+        path="/personalize" 
+        element={
+          <ProtectedRoute>
+            <Personalization />
+          </ProtectedRoute>
+        } 
+      />
+      <Route 
+        path="/assessment" 
+        element={
+          <ProtectedRoute>
+            <Assessment />
+          </ProtectedRoute>
+        } 
+      />
+      <Route 
+        path="/onboarding" 
+        element={
+          <ProtectedRoute requirePersonalization={true}>
+            <Onboarding />
+          </ProtectedRoute>
+        } 
+      />
+      <Route 
+        path="/dashboard" 
+        element={
+          <ProtectedRoute requirePersonalization={true}>
+            <Dashboard />
+          </ProtectedRoute>
+        } 
+      />
+      <Route 
+        path="/catalog" 
+        element={
+          <ProtectedRoute requirePersonalization={true}>
+            <Catalog />
+          </ProtectedRoute>
+        } 
+      />
+      <Route 
+        path="/chat" 
+        element={
+          <ProtectedRoute requirePersonalization={true}>
+            <Chat />
+          </ProtectedRoute>
+        } 
+      />
       <Route path="*" element={<Navigate to="/login" replace />} />
     </Routes>
   );

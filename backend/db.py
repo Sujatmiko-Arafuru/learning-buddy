@@ -27,7 +27,7 @@ collections = {
     'courses': db.courses if db is not None else None,
     'tutorials': db.tutorials if db is not None else None,
     'course_levels': db.course_levels if db is not None else None,
-    'learning_path_answers': db.learning_path_answers if db is not None else None,
+    'learning_path_answers': db['Learning_Path_Answer'] if db is not None else None,  # Note: actual collection name has capital letters
     'current_interest_questions': db.current_interest_questions if db is not None else None,
     'current_tech_questions': db.current_tech_questions if db is not None else None,
     'skill_keywords': db.skill_keywords if db is not None else None,

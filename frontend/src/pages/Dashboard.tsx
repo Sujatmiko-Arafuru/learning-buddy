@@ -1,12 +1,15 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Card, Row, Col, ProgressBar, Alert, Spinner, Button } from 'react-bootstrap';
 import { FaHandPaper } from 'react-icons/fa';
 import Container from '../components/layout/Container';
 import { resourcesApi } from '../api/resources';
 import { recommendationApi, RecommendedCourse } from '../api/recommendation';
 import { learningPathApi, LearningPath, Course } from '../api/learningPath';
+import { usersApi } from '../api/users';
 
 const Dashboard: React.FC = () => {
+  const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState<any>(null);
   const [recommendations, setRecommendations] = useState<RecommendedCourse[]>([]);
@@ -15,17 +18,50 @@ const Dashboard: React.FC = () => {
   const [courses, setCourses] = useState<Course[]>([]);
   const [learningDataLoading, setLearningDataLoading] = useState(true);
 
-  const userEmail = localStorage.getItem('userEmail');
+  const userEmail = localStorage.getItem('email') || localStorage.getItem('userEmail');
   const userName = localStorage.getItem('userName') || 'Pengguna';
 
   useEffect(() => {
     if (!userEmail) {
-      window.location.href = '/onboarding';
+      navigate('/login');
       return;
     }
 
-    loadDashboardData();
-  }, [userEmail]);
+    // Check if user has progress or skill assessment
+    checkUserProgress();
+  }, [userEmail, navigate]);
+
+  const checkUserProgress = async () => {
+    try {
+      const [progress, user] = await Promise.all([
+        resourcesApi.getProgress(userEmail!).catch(() => []),
+        usersApi.getUserByEmail(userEmail!).catch(() => null),
+      ]);
+
+      const hasProgress = progress.length > 0;
+      const hasSkillAssessment = Boolean(
+        user?.skill_assessment && 
+        Object.keys(user.skill_assessment).length > 0
+      );
+      const hasPersonalization = Boolean(
+        user?.preferences?.selected_learning_path_ids?.length ||
+        user?.preferences?.map_interest_choices?.length
+      );
+
+      // If user has no progress, no skill assessment, and no personalization, redirect to personalize
+      if (!hasProgress && !hasSkillAssessment && !hasPersonalization) {
+        navigate('/personalize');
+        return;
+      }
+
+      // User has progress or personalization, load dashboard data
+      loadDashboardData();
+    } catch (err) {
+      console.error('Failed to check user progress:', err);
+      // On error, still try to load dashboard
+      loadDashboardData();
+    }
+  };
 
   const loadDashboardData = async () => {
     try {

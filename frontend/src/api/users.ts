@@ -33,8 +33,40 @@ export interface RegisterPayload extends AuthCredentials {
 }
 
 export const loginUser = async (credentials: AuthCredentials) => {
-  const response = await api.post('/auth/login', credentials);
-  return response.data.data as User & { token: string };
+  try {
+    const response = await api.post('/auth/login', {
+      email: credentials.email.trim().toLowerCase(),
+      password: credentials.password,
+    });
+    
+    // Check if response is successful
+    if (response.data && response.data.success && response.data.data) {
+      const userData = response.data.data;
+      
+      // Validate required fields
+      if (!userData.email || !userData.token) {
+        throw new Error('Invalid response: missing required fields');
+      }
+      
+      return userData as User & { token: string };
+    }
+    
+    // If response structure is different, try to extract data
+    if (response.data && response.data.data) {
+      return response.data.data as User & { token: string };
+    }
+    
+    throw new Error(response.data?.error || 'Login failed');
+  } catch (error: any) {
+    // Re-throw with better error message
+    if (error.response?.data?.error) {
+      throw new Error(error.response.data.error);
+    }
+    if (error.message) {
+      throw error;
+    }
+    throw new Error('Failed to login. Please check your credentials.');
+  }
 };
 
 export const registerUser = async (payload: RegisterPayload) => {

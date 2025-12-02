@@ -5,10 +5,13 @@ import { FaGraduationCap } from 'react-icons/fa';
 
 const Navbar: React.FC = () => {
   const navigate = useNavigate();
+  const token = localStorage.getItem('token');
   const userEmail =
     localStorage.getItem('userEmail') ||
     localStorage.getItem('email') ||
     localStorage.getItem('user_email');
+  
+  const isAuthenticated = Boolean(token && userEmail);
 
   const handleLogout = () => {
     localStorage.removeItem('userEmail');
@@ -17,7 +20,7 @@ const Navbar: React.FC = () => {
     localStorage.removeItem('name');
     localStorage.removeItem('user_email');
     localStorage.removeItem('userName');
-    navigate('/');
+    navigate('/login');
   };
 
   return (
@@ -29,19 +32,21 @@ const Navbar: React.FC = () => {
         </BootstrapNavbar.Brand>
         <BootstrapNavbar.Toggle aria-controls="basic-navbar-nav" />
         <BootstrapNavbar.Collapse id="basic-navbar-nav">
-          <Nav className="me-auto">
-            <Nav.Link as={Link} to="/dashboard">
-              Dashboard
-            </Nav.Link>
-            <Nav.Link as={Link} to="/catalog">
-              Katalog
-            </Nav.Link>
-            <Nav.Link as={Link} to="/chat">
-              Chat Assistant
-            </Nav.Link>
-          </Nav>
+          {isAuthenticated && (
+            <Nav className="me-auto">
+              <Nav.Link as={Link} to="/dashboard">
+                Dashboard
+              </Nav.Link>
+              <Nav.Link as={Link} to="/catalog">
+                Katalog
+              </Nav.Link>
+              <Nav.Link as={Link} to="/chat">
+                Chat Assistant
+              </Nav.Link>
+            </Nav>
+          )}
           <Nav className="align-items-center">
-            {userEmail ? (
+            {isAuthenticated ? (
               <>
                 <Nav.Link disabled className="text-light">
                   {userEmail}

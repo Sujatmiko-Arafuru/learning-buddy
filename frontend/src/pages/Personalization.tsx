@@ -16,20 +16,29 @@ import { personalizationApi, MapInterest, MapInterestSelection } from '../api/pe
 import { resourcesApi, InterestQuestion } from '../api/resources';
 import { usersApi } from '../api/users';
 
-type Step = 'choice' | 'map' | 'question';
+type Step = 'choice' | 'map' | 'question' | 'results' | 'select-map';
+
+interface ClassificationResult {
+  category_scores: Array<{ category: string; count: number; map_interest: MapInterest; learning_path_ids: number[] }>;
+  most_suitable: Array<{ category: string; count: number; map_interest: MapInterest; learning_path_ids: number[] }>;
+  least_suitable: Array<{ category: string; count: number; map_interest: MapInterest; learning_path_ids: number[] }>;
+  map_interests: MapInterest[];
+}
 
 const Personalization = () => {
   const navigate = useNavigate();
   const [step, setStep] = useState<Step>('choice');
   const [mapInterests, setMapInterests] = useState<MapInterest[]>([]);
-  const [selectedIds, setSelectedIds] = useState<number[]>([]);
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [mapLoading, setMapLoading] = useState(false);
   const [interestQuestions, setInterestQuestions] = useState<InterestQuestion[]>([]);
   const [questionIndex, setQuestionIndex] = useState(0);
-  const [answers, setAnswers] = useState<string[]>([]);
+  const [answers, setAnswers] = useState<Record<number, string>>({}); // question index -> category
   const [submissionLoading, setSubmissionLoading] = useState(false);
   const [feedback, setFeedback] = useState<{ type: 'success' | 'danger'; message: string } | null>(null);
   const [checkingExisting, setCheckingExisting] = useState(true);
+  const [classificationResult, setClassificationResult] = useState<ClassificationResult | null>(null);
+  const [classifying, setClassifying] = useState(false);
 
   const email =
     localStorage.getItem('email') ||
@@ -91,12 +100,16 @@ const Personalization = () => {
     const loadMapInterests = async () => {
       setMapLoading(true);
       try {
+        // Map Interests are now returned from classify-answers endpoint
+        // This function is no longer needed for the 4 main Map Interests
+        // But keeping for backward compatibility
         const data = await personalizationApi.getMapInterests();
         const normalized = data
           .filter((item) => item.id !== undefined && item.id !== null)
           .map((item) => ({
             ...item,
-            id: Number(item.id),
+            id: String(item.id),
+            category: item.category || '',
           }));
         setMapInterests(normalized);
       } catch (error) {
@@ -107,7 +120,7 @@ const Personalization = () => {
       }
     };
 
-    if (!checkingExisting && step === 'map' && mapInterests.length === 0) {
+    if (!checkingExisting && (step === 'map' || step === 'select-map') && mapInterests.length === 0) {
       loadMapInterests();
     }
   }, [step, mapInterests.length, checkingExisting]);
@@ -128,6 +141,7 @@ const Personalization = () => {
     }
   }, [step, interestQuestions.length, checkingExisting]);
 
+  // Group questions by question_desc
   const groupedQuestions = useMemo(() => {
     return interestQuestions.reduce((acc, question) => {
       if (!acc[question.question_desc]) {
@@ -139,12 +153,96 @@ const Personalization = () => {
   }, [interestQuestions]);
 
   const questionKeys = Object.keys(groupedQuestions);
-  const currentQuestion = groupedQuestions[questionKeys[questionIndex]] || [];
+  const totalQuestions = questionKeys.length;
+  const currentQuestionOptions = groupedQuestions[questionKeys[questionIndex]] || [];
+  const currentAnswer = answers[questionIndex];
 
-  const toggleMapInterest = (id: number) => {
+  const handleAnswerSelect = (category: string) => {
+    setAnswers((prev) => ({
+      ...prev,
+      [questionIndex]: category,
+    }));
+    setFeedback(null);
+  };
+
+  const handleNextQuestion = () => {
+    if (currentAnswer) {
+      if (questionIndex < totalQuestions - 1) {
+        setQuestionIndex((prev) => prev + 1);
+      } else {
+        // All questions answered, classify answers
+        handleClassifyAnswers();
+      }
+    } else {
+      setFeedback({ type: 'danger', message: 'Pilih salah satu jawaban terlebih dahulu.' });
+    }
+  };
+
+  const handlePreviousQuestion = () => {
+    if (questionIndex > 0) {
+      setQuestionIndex((prev) => prev - 1);
+    }
+  };
+
+  const handleClassifyAnswers = async () => {
+    try {
+      setClassifying(true);
+      setFeedback(null);
+      
+      const answerCategories = Object.values(answers);
+      console.log('[DEBUG] Classifying answers:', answerCategories);
+      
+      if (answerCategories.length === 0) {
+        setFeedback({ type: 'danger', message: 'Silakan jawab semua pertanyaan terlebih dahulu.' });
+        setClassifying(false);
+        return;
+      }
+      
+      const result = await personalizationApi.classifyAnswers({ answers: answerCategories });
+      console.log('[DEBUG] Classification result:', result);
+      console.log('[DEBUG] Result data:', result?.data);
+      console.log('[DEBUG] Map interests:', result?.data?.map_interests);
+      
+      if (result && result.success && result.data) {
+        console.log('[DEBUG] Setting classification result with map_interests:', result.data.map_interests);
+        setClassificationResult(result.data);
+        setStep('results');
+      } else {
+        const errorMsg = result?.error || result?.message || 'Gagal mengklasifikasikan jawaban.';
+        console.error('[ERROR] Classification failed:', errorMsg);
+        setFeedback({ type: 'danger', message: errorMsg });
+      }
+    } catch (error: any) {
+      console.error('[ERROR] Failed to classify answers:', error);
+      console.error('[ERROR] Error details:', {
+        message: error?.message,
+        response: error?.response?.data,
+        status: error?.response?.status,
+      });
+      
+      let errorMsg = 'Gagal mengklasifikasikan jawaban.';
+      if (error?.response?.data?.error) {
+        errorMsg = error.response.data.error;
+      } else if (error?.message) {
+        errorMsg = error.message;
+      } else if (error?.response?.data?.message) {
+        errorMsg = error.response.data.message;
+      }
+      
+      setFeedback({ type: 'danger', message: errorMsg });
+    } finally {
+      setClassifying(false);
+    }
+  };
+
+  const toggleMapInterest = (id: string) => {
     setSelectedIds((prev) => {
       if (prev.includes(id)) {
         return prev.filter((item) => item !== id);
+      }
+      if (prev.length >= 4) {
+        setFeedback({ type: 'danger', message: 'Maksimal 4 Map Interest yang dapat dipilih.' });
+        return prev;
       }
       return [...prev, id];
     });
@@ -157,11 +255,17 @@ const Personalization = () => {
       return;
     }
 
+    if (selectedIds.length > 4) {
+      setFeedback({ type: 'danger', message: 'Maksimal 4 Map Interest yang dapat dipilih.' });
+      return;
+    }
+
     const selections: MapInterestSelection[] = mapInterests
-      .filter((interest) => selectedIds.includes(interest.id))
+      .filter((interest) => selectedIds.includes(String(interest.id)))
       .map((interest) => ({
-        id: interest.id,
+        id: String(interest.id),
         name: interest.name,
+        category: interest.category || '',
       }));
 
     try {
@@ -171,6 +275,12 @@ const Personalization = () => {
         selections,
       });
       setFeedback({ type: 'success', message: 'Pilihan Map Interest sudah tersimpan.' });
+      
+      // Redirect to assessment page with selected learning path IDs
+      const learningPathIds = selections.map(s => s.id).join(',');
+      setTimeout(() => {
+        navigate(`/assessment?learning_paths=${learningPathIds}`);
+      }, 1500);
     } catch (error: any) {
       const message = error?.response?.data?.error || 'Gagal menyimpan pilihan. Coba lagi.';
       setFeedback({ type: 'danger', message });
@@ -179,31 +289,50 @@ const Personalization = () => {
     }
   };
 
-  const handleAnswerSelect = (category: string) => {
-    setFeedback(null);
-    setAnswers((prev) => {
-      if (prev.includes(category)) {
-        return prev;
-      }
-      return [...prev, category];
-    });
-  };
-
-  const handleCurrentInterestSubmit = async () => {
-    if (answers.length === 0) {
-      setFeedback({ type: 'danger', message: 'Jawab minimal satu pertanyaan interest.' });
+  const handleSelectMapFromResults = async () => {
+    if (selectedIds.length === 0) {
+      setFeedback({ type: 'danger', message: 'Pilih minimal satu Map Interest.' });
       return;
     }
 
+    if (selectedIds.length > 4) {
+      setFeedback({ type: 'danger', message: 'Maksimal 4 Map Interest yang dapat dipilih.' });
+      return;
+    }
+
+    const selections: MapInterestSelection[] = (classificationResult?.map_interests || [])
+      .filter((interest) => selectedIds.includes(interest.id))
+      .map((interest) => ({
+        id: interest.id,
+        name: interest.name,
+        category: interest.category,
+      }));
+
+    const answerCategories = Object.values(answers);
+
     try {
       setSubmissionLoading(true);
-      await personalizationApi.saveCurrentInterestAnswers({
+      const response = await personalizationApi.saveCurrentInterestAnswers({
         email,
-        answers,
+        answers: answerCategories,
+        selected_map_interests: selections,
       });
-      setFeedback({ type: 'success', message: 'Jawaban interest sudah tersimpan.' });
+      
+      setFeedback({ type: 'success', message: 'Jawaban dan pilihan Map Interest sudah tersimpan.' });
+      
+      // Get learning path IDs from response
+      const learningPathIds = response.data?.learning_path_ids || [];
+      
+      if (learningPathIds.length > 0) {
+        // Redirect to assessment page with selected learning path IDs
+        setTimeout(() => {
+          navigate(`/assessment?learning_paths=${learningPathIds.join(',')}`);
+        }, 1500);
+      } else {
+        setFeedback({ type: 'danger', message: 'Tidak ada learning path yang ditemukan untuk Map Interest yang dipilih.' });
+      }
     } catch (error: any) {
-      const message = error?.response?.data?.error || 'Gagal menyimpan jawaban interest.';
+      const message = error?.response?.data?.error || 'Gagal menyimpan. Coba lagi.';
       setFeedback({ type: 'danger', message });
     } finally {
       setSubmissionLoading(false);
@@ -263,12 +392,12 @@ const Personalization = () => {
         <>
           <Row className="g-3">
             {mapInterests.map((interest) => {
-              const isSelected = selectedIds.includes(interest.id);
+              const isSelected = selectedIds.includes(String(interest.id));
               return (
                 <Col md={6} key={interest.id}>
                   <Card
                     className={`h-100 ${isSelected ? 'border-primary shadow-sm' : ''}`}
-                    onClick={() => toggleMapInterest(interest.id)}
+                    onClick={() => toggleMapInterest(String(interest.id))}
                     role="button"
                   >
                     <Card.Body>
@@ -276,19 +405,7 @@ const Personalization = () => {
                         <Card.Title className="mb-0">{interest.name}</Card.Title>
                         {isSelected && <Badge bg="primary">Dipilih</Badge>}
                       </div>
-                      {interest.summary && <Card.Text className="text-muted">{interest.summary}</Card.Text>}
-                      <div className="mt-3">
-                        {interest.course_difficulty && (
-                          <Badge bg="light" text="dark" className="me-2">
-                            {interest.course_difficulty}
-                          </Badge>
-                        )}
-                        {interest.course_type && (
-                          <Badge bg="light" text="dark">
-                            {interest.course_type}
-                          </Badge>
-                        )}
-                      </div>
+                      {interest.description && <Card.Text className="text-muted">{interest.description}</Card.Text>}
                     </Card.Body>
                   </Card>
                 </Col>
@@ -298,7 +415,7 @@ const Personalization = () => {
 
           <div className="d-flex justify-content-between align-items-center mt-4">
             <Form.Text className="text-muted">
-              Dipilih: {selectedIds.length} / {mapInterests.length}
+              Dipilih: {selectedIds.length} / {mapInterests.length} (Min: 1, Max: 4)
             </Form.Text>
             <Button variant="primary" onClick={handleMapSubmit} disabled={submissionLoading}>
               {submissionLoading ? 'Menyimpan...' : 'Simpan Pilihan'}
@@ -326,21 +443,27 @@ const Personalization = () => {
       ) : (
         <Card>
           <Card.Header>
-            <strong>{questionKeys[questionIndex]}</strong>
+            <div className="d-flex justify-content-between align-items-center mb-2">
+              <strong>{questionKeys[questionIndex]}</strong>
+              <span className="text-muted">
+                {questionIndex + 1} / {totalQuestions}
+              </span>
+            </div>
             <ProgressBar
-              now={((questionIndex + 1) / questionKeys.length) * 100}
+              now={((questionIndex + 1) / totalQuestions) * 100}
               className="mt-3"
-              label={`${questionIndex + 1}/${questionKeys.length}`}
+              label={`${questionIndex + 1}/${totalQuestions}`}
             />
           </Card.Header>
           <Card.Body>
             <div className="d-grid gap-2">
-              {currentQuestion.map((option, idx) => (
+              {currentQuestionOptions.map((option, idx) => (
                 <Button
                   key={`${option.category}-${idx}`}
-                  variant={answers.includes(option.category) ? 'primary' : 'outline-primary'}
+                  variant={currentAnswer === option.category ? 'primary' : 'outline-primary'}
                   onClick={() => handleAnswerSelect(option.category)}
                   className="text-start"
+                  size="lg"
                 >
                   {option.option_text}
                 </Button>
@@ -351,32 +474,138 @@ const Personalization = () => {
               <Button
                 variant="secondary"
                 disabled={questionIndex === 0}
-                onClick={() => setQuestionIndex((prev) => Math.max(prev - 1, 0))}
+                onClick={handlePreviousQuestion}
               >
                 Sebelumnya
               </Button>
               <Button
-                variant="secondary"
-                disabled={questionIndex >= questionKeys.length - 1}
-                onClick={() => setQuestionIndex((prev) => Math.min(prev + 1, questionKeys.length - 1))}
+                variant="primary"
+                onClick={handleNextQuestion}
+                disabled={!currentAnswer || classifying}
               >
-                Selanjutnya
+                {classifying ? (
+                  <>
+                    <Spinner animation="border" size="sm" className="me-2" />
+                    Mengklasifikasikan...
+                  </>
+                ) : questionIndex < totalQuestions - 1 ? (
+                  'Selanjutnya'
+                ) : (
+                  'Selesai & Lihat Hasil'
+                )}
               </Button>
             </div>
-
-            <Button
-              variant="primary"
-              className="mt-3 w-100"
-              onClick={handleCurrentInterestSubmit}
-              disabled={submissionLoading}
-            >
-              {submissionLoading ? 'Menyimpan...' : 'Simpan Jawaban'}
-            </Button>
           </Card.Body>
         </Card>
       )}
     </>
   );
+
+  const renderResultsStep = () => {
+    if (!classificationResult) return null;
+
+    const { most_suitable, least_suitable, map_interests } = classificationResult;
+    console.log('[DEBUG] Render results - map_interests:', map_interests);
+    console.log('[DEBUG] Render results - map_interests length:', map_interests?.length);
+
+    return (
+      <>
+        <div className="d-flex justify-content-between align-items-center mb-4">
+          <div>
+            <h4>Hasil Klasifikasi</h4>
+            <p className="text-muted mb-0">
+              Sistem telah mengklasifikasikan kebutuhanmu berdasarkan jawaban yang kamu berikan.
+            </p>
+          </div>
+          <Button variant="link" onClick={() => setStep('question')}>
+            &larr; Kembali
+          </Button>
+        </div>
+
+        <Card className="mb-4">
+          <Card.Body>
+            <h5 className="mb-3">Kamu Cocok di:</h5>
+            {most_suitable.length > 0 && (
+              <div className="mb-3">
+                {most_suitable.map((item, idx) => (
+                  <Alert key={idx} variant="success" className="mb-2">
+                    <strong>{item.category}</strong> - Dipilih {item.count} kali
+                  </Alert>
+                ))}
+              </div>
+            )}
+
+            {least_suitable.length > 0 && (
+              <>
+                <h5 className="mb-3 mt-4">Kamu Kurang Cocok di:</h5>
+                {least_suitable.map((item, idx) => (
+                  <Alert key={idx} variant="warning" className="mb-2">
+                    <strong>{item.category}</strong> - Dipilih {item.count} kali
+                  </Alert>
+                ))}
+              </>
+            )}
+          </Card.Body>
+        </Card>
+
+        <Card>
+          <Card.Header>
+            <h5 className="mb-0">Pilih Map Interest</h5>
+            <p className="text-muted mb-0 small">
+              Pilih minimal 1 dan maksimal 4 Map Interest berdasarkan rekomendasi di atas.
+            </p>
+          </Card.Header>
+          <Card.Body>
+            {!map_interests || map_interests.length === 0 ? (
+              <Alert variant="warning">
+                Belum ada Map Interest yang tersedia. Silakan coba lagi atau hubungi administrator.
+              </Alert>
+            ) : (
+              <>
+                <Row className="g-3">
+                  {map_interests.map((interest) => {
+                    const isSelected = selectedIds.includes(interest.id);
+                    return (
+                      <Col md={6} key={interest.id}>
+                        <Card
+                          className={`h-100 ${isSelected ? 'border-primary shadow-sm' : ''}`}
+                          onClick={() => toggleMapInterest(interest.id)}
+                          role="button"
+                          style={{ cursor: 'pointer' }}
+                        >
+                          <Card.Body>
+                            <div className="d-flex justify-content-between align-items-start mb-2">
+                              <Card.Title className="mb-0">{interest.name}</Card.Title>
+                              <Form.Check
+                                type="checkbox"
+                                checked={isSelected}
+                                onChange={() => toggleMapInterest(interest.id)}
+                                onClick={(e) => e.stopPropagation()}
+                              />
+                            </div>
+                            {interest.description && <Card.Text className="text-muted">{interest.description}</Card.Text>}
+                          </Card.Body>
+                        </Card>
+                      </Col>
+                    );
+                  })}
+                </Row>
+
+                <div className="d-flex justify-content-between align-items-center mt-4">
+                  <Form.Text className="text-muted">
+                    Dipilih: {selectedIds.length} / {map_interests.length} (Min: 1, Max: 4)
+                  </Form.Text>
+                  <Button variant="primary" onClick={handleSelectMapFromResults} disabled={submissionLoading}>
+                    {submissionLoading ? 'Menyimpan...' : 'Simpan Pilihan'}
+                  </Button>
+                </div>
+              </>
+            )}
+          </Card.Body>
+        </Card>
+      </>
+    );
+  };
 
   if (checkingExisting) {
     return (
@@ -416,6 +645,7 @@ const Personalization = () => {
               {step === 'choice' && renderChoiceStep()}
               {step === 'map' && renderMapInterestStep()}
               {step === 'question' && renderQuestionStep()}
+              {step === 'results' && renderResultsStep()}
             </Card.Body>
           </Card>
         </Col>
@@ -425,4 +655,3 @@ const Personalization = () => {
 };
 
 export default Personalization;
-

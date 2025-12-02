@@ -3,13 +3,26 @@
  */
 import axios from 'axios';
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+// Get API URL from environment or use default
+const getApiUrl = () => {
+  const envUrl = import.meta.env.VITE_API_URL;
+  if (envUrl) {
+    return envUrl.endsWith('/api') ? envUrl : `${envUrl}/api`;
+  }
+  return 'http://localhost:5000/api';
+};
+
+const API_URL = getApiUrl();
+
+// Log API URL for debugging
+console.log('[API] Using API URL:', API_URL);
 
 const api = axios.create({
   baseURL: API_URL,
   headers: {
     'Content-Type': 'application/json',
   },
+  timeout: 60000, // 60 seconds timeout (assessment submit may take longer)
 });
 
 // Request interceptor
@@ -29,12 +42,37 @@ api.interceptors.request.use(
 
 // Response interceptor
 api.interceptors.response.use(
-  (response) => response,
+  (response) => {
+    // Log successful responses for debugging
+    if (response.config.url?.includes('/auth/login')) {
+      console.log('[DEBUG] Login API response:', response.data);
+    }
+    return response;
+  },
   (error) => {
-    if (error.response?.status === 401) {
-      // Handle unauthorized
-      localStorage.removeItem('token');
-      window.location.href = '/';
+    // Handle network errors
+    if (!error.response) {
+      // Network error - backend is not reachable
+      if (error.code === 'ECONNABORTED') {
+        error.message = 'Request timeout. Please check if backend server is running.';
+      } else if (error.code === 'ERR_NETWORK' || error.message === 'Network Error') {
+        error.message = 'Network Error: Cannot connect to backend server. Please ensure the backend is running on ' + API_URL;
+      }
+      console.error('[DEBUG] Network error:', error.message);
+      console.error('[DEBUG] API URL:', API_URL);
+    } else {
+      // HTTP error response
+      if (error.config?.url?.includes('/auth/login')) {
+        console.error('[DEBUG] Login API error:', error.response?.data || error.message);
+      }
+      
+      if (error.response?.status === 401) {
+        // Don't redirect on login page - let the login component handle it
+        if (!window.location.pathname.includes('/login')) {
+          localStorage.removeItem('token');
+          window.location.href = '/login';
+        }
+      }
     }
     return Promise.reject(error);
   }

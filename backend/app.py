@@ -24,6 +24,7 @@ from routes.recommendation import recommendation_bp
 from routes.questions import questions_bp
 from routes.chat import chat_bp
 from routes.personalization import personalization_bp
+from routes.assessment import assessment_bp
 
 # Register blueprints
 app.register_blueprint(learning_path_bp, url_prefix='/api')
@@ -33,6 +34,7 @@ app.register_blueprint(recommendation_bp, url_prefix='/api')
 app.register_blueprint(questions_bp, url_prefix='/api')
 app.register_blueprint(chat_bp, url_prefix='/api')
 app.register_blueprint(personalization_bp, url_prefix='/api')
+app.register_blueprint(assessment_bp, url_prefix='/api')
 
 @app.route('/api/health', methods=['GET'])
 def health_check():
@@ -46,5 +48,28 @@ def index():
 
 if __name__ == '__main__':
     port = int(os.getenv('PORT', 5000))
-    app.run(host='0.0.0.0', port=port, debug=True)
+    print("=" * 60)
+    print("Learning Buddy Backend Server")
+    print("=" * 60)
+    print(f"Server running on: http://0.0.0.0:{port}")
+    print(f"API endpoint: http://localhost:{port}/api")
+    print(f"Health check: http://localhost:{port}/api/health")
+    print("=" * 60)
+    print("Press Ctrl+C to stop the server")
+    print("=" * 60)
+    print()
+    try:
+        app.run(host='0.0.0.0', port=port, debug=True)
+    except OSError as e:
+        if "Address already in use" in str(e) or "address is already in use" in str(e).lower():
+            print(f"\n[ERROR] Port {port} is already in use!")
+            print(f"Please either:")
+            print(f"  1. Stop the application using port {port}")
+            print(f"  2. Change PORT in .env file to a different port")
+            print(f"\nTo find what's using port {port}:")
+            print(f"  Windows: netstat -ano | findstr :{port}")
+            print(f"  Linux/Mac: lsof -i :{port}")
+        else:
+            print(f"\n[ERROR] Failed to start server: {e}")
+        raise
 

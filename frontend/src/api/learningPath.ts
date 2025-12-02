@@ -34,9 +34,14 @@ export const learningPathApi = {
     return response.data.data || [];
   },
 
-  // Get courses (optionally filtered by learning_path_id)
-  getCourses: async (lpId?: number): Promise<Course[]> => {
-    const params = lpId ? { lp_id: lpId } : {};
+  // Get courses (optionally filtered by learning_path_id or multiple learning_path_ids)
+  getCourses: async (lpId?: number, lpIds?: number[]): Promise<Course[]> => {
+    const params: any = {};
+    if (lpIds && lpIds.length > 0) {
+      params.lp_ids = lpIds.join(',');
+    } else if (lpId) {
+      params.lp_id = lpId;
+    }
     const response = await api.get('/courses', { params });
     return response.data.data || [];
   },
