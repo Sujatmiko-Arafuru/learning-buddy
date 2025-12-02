@@ -13,7 +13,6 @@ const Dashboard: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState<any>(null);
   const [recommendations, setRecommendations] = useState<RecommendedCourse[]>([]);
-  const [error, setError] = useState('');
   const [learningPaths, setLearningPaths] = useState<LearningPath[]>([]);
   const [courses, setCourses] = useState<Course[]>([]);
   const [learningDataLoading, setLearningDataLoading] = useState(true);
@@ -67,15 +66,32 @@ const Dashboard: React.FC = () => {
     try {
       setLoading(true);
       
+      // Get user preferences to filter courses by selected learning paths
+      let selectedLpIds: number[] | undefined = undefined;
+      try {
+        const user = await usersApi.getUserByEmail(userEmail!);
+        selectedLpIds = user?.preferences?.selected_learning_path_ids;
+      } catch (err) {
+        console.error('Failed to load user preferences:', err);
+      }
+      
       const [progressStats, recs, lpData, courseData] = await Promise.all([
         resourcesApi.getProgressStats(userEmail!),
         recommendationApi.getRecommendations(userEmail!),
         learningPathApi.getLearningPaths(),
-        learningPathApi.getCourses(),
+        learningPathApi.getCourses(undefined, selectedLpIds),
       ]);
       setStats(progressStats);
       setRecommendations(recs.recommended_courses || []);
-      setLearningPaths(lpData);
+      
+      // Filter learning paths to only show selected ones
+      if (selectedLpIds && selectedLpIds.length > 0) {
+        const filteredLps = lpData.filter(lp => selectedLpIds!.includes(lp.learning_path_id));
+        setLearningPaths(filteredLps);
+      } else {
+        setLearningPaths(lpData);
+      }
+      
       setCourses(courseData);
       setLearningDataLoading(false);
     } catch (err: any) {
@@ -146,8 +162,6 @@ const Dashboard: React.FC = () => {
       <h2 className="mb-4">
         Selamat Datang, {userName}! <FaHandPaper className="text-primary ms-2" aria-hidden="true" />
       </h2>
-
-      {error && <Alert variant="danger">{error}</Alert>}
 
       {/* Statistics Cards */}
       {stats && (
@@ -222,6 +236,9 @@ const Dashboard: React.FC = () => {
       <Card className="mb-4">
         <Card.Header>
           <h5 className="mb-0">Learning Path & Kursus</h5>
+          <small className="text-muted">
+            Menampilkan course dari Map Interest yang dipilih
+          </small>
         </Card.Header>
         <Card.Body>
           {learningDataLoading ? (
@@ -229,7 +246,9 @@ const Dashboard: React.FC = () => {
               <Spinner animation="border" />
             </div>
           ) : learningPaths.length === 0 ? (
-            <Alert variant="info">Belum ada data learning path yang tersedia.</Alert>
+            <Alert variant="info">
+              Belum ada data learning path yang tersedia. Silakan pilih Map Interest terlebih dahulu.
+            </Alert>
           ) : (
             learningPaths.map((path) => {
               const pathCourses = coursesByPath[path.learning_path_id] || [];
