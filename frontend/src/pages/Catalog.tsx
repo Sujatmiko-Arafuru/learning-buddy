@@ -4,6 +4,13 @@ import Container from '../components/layout/Container';
 import { learningPathApi, LearningPath, Course } from '../api/learningPath';
 import { usersApi } from '../api/users';
 
+interface MapInterest {
+  id: string | number;
+  name: string;
+  category?: string;
+  description?: string;
+}
+
 const Catalog: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [learningPaths, setLearningPaths] = useState<LearningPath[]>([]);
@@ -11,6 +18,7 @@ const Catalog: React.FC = () => {
   const [selectedLp, setSelectedLp] = useState<number | null>(null);
   const [error, setError] = useState('');
   const [userSelectedLpIds, setUserSelectedLpIds] = useState<number[]>([]);
+  const [selectedMapInterests, setSelectedMapInterests] = useState<MapInterest[]>([]);
 
   const userEmail = localStorage.getItem('email') || localStorage.getItem('userEmail');
 
@@ -39,14 +47,21 @@ const Catalog: React.FC = () => {
       const lps = await learningPathApi.getLearningPaths();
       setLearningPaths(lps);
       
-      // Load user preferences to get selected learning path IDs
+      // Load user preferences to get selected learning path IDs and map interests
       if (userEmail) {
         try {
           const user = await usersApi.getUserByEmail(userEmail);
           const selectedIds = user?.preferences?.selected_learning_path_ids || [];
+          const mapInterests = user?.preferences?.map_interest_choices || [];
+          
+          // Set map interests
+          if (mapInterests.length > 0) {
+            setSelectedMapInterests(mapInterests);
+          }
+          
           if (selectedIds.length > 0) {
             setUserSelectedLpIds(selectedIds);
-            // Load courses for user's selected learning paths
+            // Load courses for user's selected learning paths (based on map interests)
             const courseData = await learningPathApi.getCourses(undefined, selectedIds);
             setCourses(courseData);
           } else {
@@ -111,6 +126,27 @@ const Catalog: React.FC = () => {
 
       {error && <Alert variant="danger">{error}</Alert>}
 
+      {/* Map Interest Info */}
+      {selectedMapInterests.length > 0 && (
+        <Card className="mb-4 border-primary">
+          <Card.Header className="bg-primary text-white">
+            <h5 className="mb-0">Map Interest yang Dipilih</h5>
+          </Card.Header>
+          <Card.Body>
+            <div className="d-flex flex-wrap gap-2">
+              {selectedMapInterests.map((mi) => (
+                <Badge key={mi.id} bg="primary" style={{ fontSize: '0.9rem', padding: '0.5rem 1rem' }}>
+                  {mi.name}
+                </Badge>
+              ))}
+            </div>
+            <p className="text-muted small mt-2 mb-0">
+              Menampilkan course dari {userSelectedLpIds.length} Learning Path yang sesuai dengan Map Interest yang dipilih
+            </p>
+          </Card.Body>
+        </Card>
+      )}
+
       {/* Learning Path Filter */}
       <Card className="mb-4">
         <Card.Body>
@@ -120,7 +156,7 @@ const Catalog: React.FC = () => {
                 Filter berdasarkan Learning Path:
                 {userSelectedLpIds.length > 0 && (
                   <Badge bg="info" className="ms-2">
-                    Menampilkan course dari {userSelectedLpIds.length} Learning Path yang dipilih
+                    {userSelectedLpIds.length} Learning Path
                   </Badge>
                 )}
               </Form.Label>
@@ -132,7 +168,7 @@ const Catalog: React.FC = () => {
               >
                 <option value="">
                   {userSelectedLpIds.length > 0 
-                    ? `Semua Learning Path yang Dipilih (${userSelectedLpIds.length})`
+                    ? `Semua Learning Path dari Map Interest (${userSelectedLpIds.length})`
                     : 'Semua Learning Path'}
                 </option>
                 {learningPaths
@@ -165,10 +201,10 @@ const Catalog: React.FC = () => {
                     <Badge bg="primary">{course.course_level_str}</Badge>
                   </div>
                   <p className="text-muted small mb-2">
-                    Learning Path ID: {course.learning_path_id}
+                    {learningPaths.find(lp => lp.learning_path_id === course.learning_path_id)?.learning_path_name || `Learning Path ID: ${course.learning_path_id}`}
                   </p>
                   <p className="text-muted small">
-                    ⏱️ {course.hours_to_study} jam belajar
+                    ⏱️ {course.hours_to_study || 0} jam belajar
                   </p>
                   <button className="btn btn-primary btn-sm w-100">
                     Lihat Detail

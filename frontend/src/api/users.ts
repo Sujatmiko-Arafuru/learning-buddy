@@ -12,8 +12,9 @@ export interface User {
   preferences?: {
     preferred_learning_path_id?: number;
     preferred_difficulty?: string;
-    map_interest_choices?: Array<{ id: number; name: string }>;
+    map_interest_choices?: Array<{ id: string | number; name: string; category?: string; description?: string }>;
     map_interest_mode?: 'manual' | 'guided';
+    selected_learning_path_ids?: number[];
   };
   current_learning_path?: number;
   skill_assessment?: Record<string, number>;
