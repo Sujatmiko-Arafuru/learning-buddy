@@ -116,3 +116,5 @@ output.txt
 docs/_build/
 site/
 
+# Chroma DB
+backend/backend
