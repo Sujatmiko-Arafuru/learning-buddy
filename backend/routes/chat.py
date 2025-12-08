@@ -1,25 +1,15 @@
 """
-Routes for chat assistant with Groq LLM and RAG support
+Routes for chat assistant
 """
 from flask import Blueprint, jsonify, request
 from db import collections
 from services.recommender import RecommenderService
 
-# Try to import new chatbot service, fallback to old implementation
-try:
-    from services.chatbot_service import get_chatbot_service
-    USE_RAG_CHATBOT = True
-    print("[OK] RAG Chatbot service loaded")
-except Exception as e:
-    print(f"[WARN] RAG Chatbot not available: {e}")
-    print("[INFO] Using fallback chat implementation")
-    USE_RAG_CHATBOT = False
-
 chat_bp = Blueprint('chat', __name__)
 recommender = RecommenderService()
 
 def analyze_question_intent(message: str) -> str:
-    """Analyze question to determine intent (fallback method)"""
+    """Analyze question to determine intent"""
     message_lower = message.lower()
     
     # Progress-related keywords
@@ -51,21 +41,6 @@ def chat():
         
         email = data['email']
         message = data['message']
-        
-        # Try to use RAG chatbot if available
-        if USE_RAG_CHATBOT:
-            try:
-                chatbot = get_chatbot_service()
-                result = chatbot.chat(email, message)
-                
-                return jsonify({
-                    'success': True,
-                    'data': result
-                }), 200
-            except Exception as e:
-                print(f"[ERROR] RAG chatbot failed: {e}")
-                print("[INFO] Falling back to simple chat")
-                # Continue to fallback implementation below
         
         # Analyze question intent
         intent = analyze_question_intent(message)
@@ -168,72 +143,6 @@ def chat():
             }
         }), 200
     
-    except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
-
-@chat_bp.route('/chat/clear', methods=['POST'])
-def clear_chat_history():
-    """Clear chat history for a user"""
-    try:
-        data = request.get_json()
-        
-        if 'email' not in data:
-            return jsonify({'success': False, 'error': 'email required'}), 400
-        
-        email = data['email']
-        
-        # Clear history if using RAG chatbot
-        if USE_RAG_CHATBOT:
-            try:
-                chatbot = get_chatbot_service()
-                chatbot.clear_history(email)
-                
-                return jsonify({
-                    'success': True,
-                    'message': 'Chat history cleared'
-                }), 200
-            except Exception as e:
-                print(f"[ERROR] Failed to clear history: {e}")
-        
-        return jsonify({
-            'success': True,
-            'message': 'Chat history cleared (no persistent history in simple mode)'
-        }), 200
-        
-    except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
-
-@chat_bp.route('/chat/history', methods=['GET'])
-def get_chat_history():
-    """Get chat history for a user"""
-    try:
-        email = request.args.get('email')
-        
-        if not email:
-            return jsonify({'success': False, 'error': 'email required'}), 400
-        
-        # Get history if using RAG chatbot
-        if USE_RAG_CHATBOT:
-            try:
-                chatbot = get_chatbot_service()
-                history = chatbot.get_history(email)
-                
-                return jsonify({
-                    'success': True,
-                    'data': {
-                        'history': history
-                    }
-                }), 200
-            except Exception as e:
-                print(f"[ERROR] Failed to get history: {e}")
-        
-        return jsonify({
-            'success': True,
-            'data': {
-                'history': []
-            }
-        }), 200
-        
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
 

@@ -12,65 +12,17 @@ interface Message {
 }
 
 const Chat: React.FC = () => {
-
-  const loadMessagesFromStorage = (): Message[] => {
-    const userEmail = localStorage.getItem('userEmail');
-    if (!userEmail) {
-      return [
-        {
-          id: 1,
-          text: 'Halo! Saya Learning Buddy, asisten belajar Anda. Ada yang bisa saya bantu?',
-          sender: 'bot',
-          timestamp: new Date(),
-        },
-      ];
-    }
-
-    const storageKey = `chat_messages_${userEmail}`;
-    const savedMessages = localStorage.getItem(storageKey);
-    
-    if (savedMessages) {
-      try {
-        const parsed = JSON.parse(savedMessages);
-        // Convert timestamp strings back to Date objects
-        return parsed.map((msg: any) => ({
-          ...msg,
-          timestamp: new Date(msg.timestamp),
-        }));
-      } catch (error) {
-        console.error('Error loading chat history:', error);
-      }
-    }
-
-    // Default welcome message
-    return [
-      {
-        id: 1,
-        text: 'Halo! Saya Learning Buddy, asisten belajar Anda. Ada yang bisa saya bantu?',
-        sender: 'bot',
-        timestamp: new Date(),
-      },
-    ];
-  };
-
-  const [messages, setMessages] = useState<Message[]>(loadMessagesFromStorage);
+  const [messages, setMessages] = useState<Message[]>([
+    {
+      id: 1,
+      text: 'Halo! Saya Learning Buddy, asisten belajar Anda. Ada yang bisa saya bantu?',
+      sender: 'bot',
+      timestamp: new Date(),
+    },
+  ]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
-
-  // Save messages to localStorage whenever messages change
-  useEffect(() => {
-    const userEmail = localStorage.getItem('userEmail');
-    if (userEmail && messages.length > 0) {
-      const storageKey = `chat_messages_${userEmail}`;
-      // Save to localStorage (convert Date to string for JSON)
-      const messagesToSave = messages.map((msg) => ({
-        ...msg,
-        timestamp: msg.timestamp.toISOString(),
-      }));
-      localStorage.setItem(storageKey, JSON.stringify(messagesToSave));
-    }
-  }, [messages]);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -80,71 +32,51 @@ const Chat: React.FC = () => {
     scrollToBottom();
   }, [messages]);
 
-const handleSend = async (e: React.FormEvent) => {
-  e.preventDefault();
-  if (!input.trim()) return;
+  const handleSend = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!input.trim()) return;
 
-  const userEmail = localStorage.getItem('userEmail');
-  if (!userEmail) {
-    alert('Silakan lakukan onboarding terlebih dahulu');
-    return;
-  }
-
-  const userMessage: Message = {
-    id: messages.length + 1,
-    text: input,
-    sender: 'user',
-    timestamp: new Date(),
-  };
-
-  setMessages((prev) => [...prev, userMessage]);
-  const currentInput = input;
-  setInput('');
-  setLoading(true);
-
-  let timeoutId: ReturnType<typeof setTimeout> | null = null;
-  let timeoutTriggered = false; // <-- tambahan penting
-
-  try {
-    const timeoutPromise = new Promise((_, reject) => {
-      timeoutId = setTimeout(() => {
-        timeoutTriggered = true; // <-- menandai timeout yang menang
-        reject(new Error('TIMEOUT'));
-      }, 90000);
-    });
-
-    const response = await Promise.race([
-      chatApi.sendMessage(userEmail, currentInput),
-      timeoutPromise,
-    ]);
-
-    // Sukses
-    const botResponse: Message = {
-      id: messages.length + 2,
-      text: (response as any).response,
-      sender: 'bot',
-      timestamp: new Date(),
-    };
-    setMessages((prev) => [...prev, botResponse]);
-  } catch (error) {
-    const errorResponse: Message = {
-      id: messages.length + 2,
-      text: timeoutTriggered
-        ? 'Maaf, chatbot membutuhkan waktu lama untuk menjawab. Silakan ulangi pertanyaan Anda.'
-        : 'Maaf, terjadi kesalahan saat memproses pertanyaan Anda. Silakan coba lagi.',
-      sender: 'bot',
-      timestamp: new Date(),
-    };
-    setMessages((prev) => [...prev, errorResponse]);
-  } finally {
-    if (timeoutId !== null) {
-      clearTimeout(timeoutId);
+    const userEmail = localStorage.getItem('userEmail');
+    if (!userEmail) {
+      alert('Silakan lakukan onboarding terlebih dahulu');
+      return;
     }
-    setLoading(false);
-  }
-};
 
+    const userMessage: Message = {
+      id: messages.length + 1,
+      text: input,
+      sender: 'user',
+      timestamp: new Date(),
+    };
 
+    setMessages([...messages, userMessage]);
+    const currentInput = input;
+    setInput('');
+    setLoading(true);
+
+    try {
+      // Call chat API
+      const response = await chatApi.sendMessage(userEmail, currentInput);
+      
+      const botResponse: Message = {
+        id: messages.length + 2,
+        text: response.response,
+        sender: 'bot',
+        timestamp: new Date(),
+      };
+      setMessages((prev) => [...prev, botResponse]);
+    } catch (error: any) {
+      const errorResponse: Message = {
+        id: messages.length + 2,
+        text: 'Maaf, terjadi kesalahan saat memproses pertanyaan Anda. Silakan coba lagi.',
+        sender: 'bot',
+        timestamp: new Date(),
+      };
+      setMessages((prev) => [...prev, errorResponse]);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   return (
     <Container>
@@ -183,7 +115,7 @@ const handleSend = async (e: React.FormEvent) => {
                   }`}
                   style={{ maxWidth: '70%' }}
                 >
-                  <div style={{ whiteSpace: 'pre-wrap' }}>{message.text}</div>
+                  <div>{message.text}</div>
                   <small
                     className={`d-block mt-1 ${
                       message.sender === 'user' ? 'text-white-50' : 'text-muted'
@@ -224,39 +156,9 @@ const handleSend = async (e: React.FormEvent) => {
         </Card.Body>
       </Card>
 
-      <div className="mt-3 d-flex justify-content-between align-items-center">
-        <Alert variant="info" className="mb-0 flex-grow-1 me-3">
-          <strong>Tips:</strong> Coba tanyakan tentang progres belajar, rekomendasi kursus, atau skill yang perlu ditingkatkan!
-        </Alert>
-        <Button
-          variant="outline-secondary"
-          size="sm"
-          onClick={() => {
-            if (window.confirm('Apakah Anda yakin ingin menghapus semua riwayat chat?')) {
-              const userEmail = localStorage.getItem('userEmail');
-              if (userEmail) {
-                const storageKey = `chat_messages_${userEmail}`;
-                localStorage.removeItem(storageKey);
-              }
-              // Reset to welcome message
-              setMessages([
-                {
-                  id: 1,
-                  text: 'Halo! Saya Learning Buddy, asisten belajar Anda. Ada yang bisa saya bantu?',
-                  sender: 'bot',
-                  timestamp: new Date(),
-                },
-              ]);
-              // Also clear backend history
-              if (userEmail) {
-                chatApi.clearHistory(userEmail).catch(console.error);
-              }
-            }
-          }}
-        >
-          🗑️ Hapus Riwayat
-        </Button>
-      </div>
+      <Alert variant="info" className="mt-3">
+        <strong>Tips:</strong> Coba tanyakan tentang progres belajar, rekomendasi kursus, atau skill yang perlu ditingkatkan!
+      </Alert>
     </Container>
   );
 };

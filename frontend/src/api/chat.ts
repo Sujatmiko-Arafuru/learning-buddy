@@ -19,16 +19,5 @@ export const chatApi = {
     const response = await api.post('/chat', { email, message });
     return response.data.data;
   },
-
-  // Clear chat history
-  clearHistory: async (email: string): Promise<void> => {
-    await api.post('/chat/clear', { email });
-  },
-
-  // Get chat history
-  getHistory: async (email: string): Promise<any> => {
-    const response = await api.get(`/chat/history?email=${encodeURIComponent(email)}`);
-    return response.data.data;
-  },
 };
 

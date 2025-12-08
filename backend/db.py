@@ -33,5 +33,6 @@ collections = {
     'skill_keywords': db.skill_keywords if db is not None else None,
     'student_progress': db.student_progress if db is not None else None,
     'users': db.users if db is not None else None,
+    'Soal_Ujian': db.Soal_Ujian if db is not None else None,
 }
 

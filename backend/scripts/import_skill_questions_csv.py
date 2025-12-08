@@ -1,27 +1,33 @@
 """
-Import skill/tech questions from CSV (docs/skill_questions_full (1).csv)
-into the MongoDB collection `current_tech_questions`.
-
-Usage (from backend folder):
-    python -m scripts.import_skill_questions_csv "../docs/skill_questions_full (1).csv"
-or:
-    python scripts/import_skill_questions_csv.py "../docs/skill_questions_full (1).csv"
+Import soal ujian from CSV (Soal_Ujian.csv)
+into the MongoDB collection `Soal_Ujian`.
 """
 
 import csv
 import os
 import sys
 from typing import List, Dict
+from pymongo import MongoClient
+from dotenv import load_dotenv
 
-# Ensure we can import db module
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from db import collections, db  # noqa: E402
+# Load environment variables
+load_dotenv()
+
+# MongoDB connection
+MONGO_URI = os.getenv('MONGO_URI', 'mongodb://localhost:27017/')
+DB_NAME = os.getenv('DB_NAME', 'learning_buddy_db')
 
 
-def import_skill_questions(csv_path: str) -> None:
-    """Import questions from the given CSV file into current_tech_questions."""
-    if db is None or collections.get("current_tech_questions") is None:
-        print("[ERROR] Database not connected. Please check your MONGO_URI / DB_NAME.")
+def import_soal_ujian(csv_path: str) -> None:
+    """Import soal ujian dari file CSV ke collection Soal_Ujian."""
+    
+    try:
+        client = MongoClient(MONGO_URI)
+        db = client[DB_NAME]
+        client.admin.command('ping')
+        print(f"[OK] Connected to MongoDB: {DB_NAME}")
+    except Exception as e:
+        print(f"[ERROR] MongoDB connection error: {e}")
         return
 
     if not os.path.exists(csv_path):
@@ -29,75 +35,160 @@ def import_skill_questions(csv_path: str) -> None:
         return
 
     print("=" * 70)
-    print("Importing skill questions from CSV")
+    print("Importing soal ujian from CSV")
     print(f"Source file : {csv_path}")
-    print(f"Target coll : {db.name}.current_tech_questions")
+    print(f"Target coll : {DB_NAME}.Soal_Ujian")
     print("=" * 70)
 
+    # Get the collection
+    coll = db["Soal_Ujian"]
+    
     docs: List[Dict] = []
+    
     with open(csv_path, "r", encoding="utf-8-sig") as f:
-        reader = csv.DictReader(f)
-        required_cols = {
-            "tech_category",
-            "difficulty",
-            "question_desc",
-            "option_1",
-            "option_2",
-            "option_3",
-            "option_4",
-            "correct_answer",
-        }
-
-        missing = required_cols - set(reader.fieldnames or [])
-        if missing:
-            print(f"[ERROR] CSV is missing required columns: {', '.join(sorted(missing))}")
+        # Baca seluruh konten
+        content = f.read().strip()
+        
+        print(f"[DEBUG] File content preview:\n{content[:500]}...")
+        
+        # Split menjadi lines
+        lines = content.split('\n')
+        
+        # DEBUG: Show raw lines
+        print(f"\n[DEBUG] Number of lines: {len(lines)}")
+        for i, line in enumerate(lines[:3]):
+            print(f"Line {i}: {repr(line)}")
+        
+        # Handle quoted CSV - gunakan csv.reader dengan quote handling
+        from io import StringIO
+        csv_content = StringIO(content)
+        
+        # Coba berbagai quoting options
+        try:
+            reader = csv.reader(csv_content, quotechar='"', quoting=csv.QUOTE_MINIMAL)
+            
+            # Baca header
+            headers = next(reader)
+            print(f"\n[DEBUG] Parsed headers: {headers}")
+            print(f"[DEBUG] Number of header columns: {len(headers)}")
+            
+            # Jika header masih jadi satu string, split manual
+            if len(headers) == 1 and ',' in headers[0]:
+                print("[INFO] Header is single string, splitting manually...")
+                # Hapus quotes di awal/akhir jika ada
+                header_str = headers[0]
+                if header_str.startswith('"') and header_str.endswith('"'):
+                    header_str = header_str[1:-1]
+                headers = header_str.split(',')
+                print(f"[DEBUG] Manually split headers: {headers}")
+            
+            # Pastikan semua headers bersih
+            headers = [h.strip().replace('"', '') for h in headers]
+            print(f"[INFO] Clean headers: {headers}")
+            
+            # Proses baris data
+            for i, row in enumerate(reader, 1):
+                # Skip empty rows
+                if not any(row):
+                    continue
+                    
+                # Jika row hanya punya 1 element tapi ada koma di dalamnya
+                if len(row) == 1 and ',' in row[0]:
+                    row = row[0].split(',')
+                
+                # Bersihkan quotes dari setiap field
+                cleaned_row = []
+                for field in row:
+                    if field is None:
+                        cleaned_row.append("")
+                    else:
+                        field_str = str(field).strip()
+                        # Hapus quotes di awal/akhir
+                        if field_str.startswith('"') and field_str.endswith('"'):
+                            field_str = field_str[1:-1]
+                        # Hapus double quotes
+                        field_str = field_str.replace('""', '"')
+                        cleaned_row.append(field_str)
+                
+                # Map ke dictionary
+                if len(cleaned_row) >= len(headers):
+                    doc = {}
+                    for j, header in enumerate(headers):
+                        if j < len(cleaned_row):
+                            doc[header] = cleaned_row[j]
+                        else:
+                            doc[header] = ""
+                    
+                    # Validasi required fields
+                    required_fields = [
+                        'course_id', 'course_name', 'question_number', 
+                        'question_text', 'option_a', 'option_b', 
+                        'option_c', 'option_d', 'correct_answer'
+                    ]
+                    
+                    # Cek jika semua field required ada
+                    has_all = True
+                    for field in required_fields:
+                        if field not in doc:
+                            print(f"[WARN] Row {i}: Missing field '{field}'")
+                            has_all = False
+                    
+                    if has_all:
+                        # Convert question_number to integer
+                        try:
+                            doc['question_number'] = int(doc['question_number'])
+                        except ValueError:
+                            print(f"[WARN] Row {i}: Invalid question_number '{doc['question_number']}'")
+                        
+                        docs.append(doc)
+                        
+                        # Debug first 2 rows
+                        if i <= 2:
+                            print(f"\n[DEBUG] Sample row {i}:")
+                            for key, value in doc.items():
+                                print(f"  {key}: {repr(value)}")
+                else:
+                    print(f"[WARN] Row {i}: Mismatched columns ({len(cleaned_row)} vs {len(headers)})")
+                    print(f"  Row data: {cleaned_row}")
+            
+        except Exception as e:
+            print(f"[ERROR] CSV parsing error: {e}")
+            import traceback
+            traceback.print_exc()
             return
-
-        for row in reader:
-            # Clean whitespace
-            doc = {
-                "tech_category": (row.get("tech_category") or "").strip(),
-                "difficulty": (row.get("difficulty") or "").strip().lower(),  # store as lower case
-                "question_desc": (row.get("question_desc") or "").strip(),
-                "option_1": (row.get("option_1") or "").strip(),
-                "option_2": (row.get("option_2") or "").strip(),
-                "option_3": (row.get("option_3") or "").strip(),
-                "option_4": (row.get("option_4") or "").strip(),
-                "correct_answer": (row.get("correct_answer") or "").strip(),
-            }
-
-            # Skip empty rows
-            if not doc["question_desc"]:
-                continue
-
-            docs.append(doc)
-
-    coll = collections["current_tech_questions"]
-
-    print(f"[INFO] Parsed {len(docs)} questions from CSV")
+    
+    print(f"\n[INFO] Successfully parsed {len(docs)} questions from CSV")
+    
     if not docs:
         print("[WARN] No documents to import. Aborting.")
         return
-
-    # Replace existing documents
+    
+    # Delete existing data
     result_del = coll.delete_many({})
-    print(f"[OK] Deleted {result_del.deleted_count} existing documents from current_tech_questions")
-
-    coll.insert_many(docs)
-    print(f"[OK] Inserted {len(docs)} documents into current_tech_questions")
-    print("[DONE] Import complete.")
+    print(f"[OK] Deleted {result_del.deleted_count} existing documents")
+    
+    # Insert new data
+    try:
+        coll.insert_many(docs)
+        print(f"[OK] Inserted {len(docs)} documents into Soal_Ujian")
+        
+        # Show summary
+        print("\n[SUMMARY]")
+        from collections import Counter
+        course_counts = Counter([doc.get('course_name', 'Unknown') for doc in docs])
+        for course, count in course_counts.items():
+            print(f"  • {course}: {count} questions")
+            
+        print("[DONE] Import complete!")
+        
+    except Exception as e:
+        print(f"[ERROR] Failed to insert documents: {e}")
 
 
 if __name__ == "__main__":
-    # If path provided as CLI arg, use that; otherwise default to ../docs/skill_questions_full (1).csv
     if len(sys.argv) >= 2:
         csv_file = sys.argv[1]
     else:
-        csv_file = os.path.join(
-            os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
-            "docs",
-            "skill_questions_full (1).csv",
-        )
-
-    import_skill_questions(csv_file)
-
+        csv_file = "Soal_Ujian.csv"
+    
+    import_soal_ujian(csv_file)
