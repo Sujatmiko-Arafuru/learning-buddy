@@ -713,6 +713,7 @@ ATURAN FORMATTING RESPONSE (WAJIB DIIKUTI):
 4. Untuk ROADMAP: Gunakan format visual dengan box (┌─┐) seperti yang diinstruksikan
 5. HAPUS duplicate Course ID - hanya tampilkan 1 ID per course
 6. Response maksimal 500 kata
+7. Jika jawaban tidak ada di dalam konteks, jawab jujur: "Maaf, data terkait konteks tersebut tidak ditemukan di sistem kami.
 
 {history_str}
 
