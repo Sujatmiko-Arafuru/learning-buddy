@@ -1,0 +1,21 @@
+{
+  "name": "Learning Buddy - AI Learning Companion",
+  "short_name": "Learning Buddy",
+  "description": "Aplikasi web berbasis AI yang berfungsi sebagai pendamping belajar untuk platform Dicoding",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#4f46e5",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ],
+  "categories": ["education", "learning"],
+  "lang": "id"
+}
+

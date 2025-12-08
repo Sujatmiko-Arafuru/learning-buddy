@@ -1,0 +1,36 @@
+# Machine Learning Dependencies
+# Install dengan: pip install -r requirements.txt
+
+# Core ML Libraries
+numpy>=1.21.0
+pandas>=1.3.0
+scikit-learn>=1.0.0
+
+# Deep Learning (optional, uncomment jika diperlukan)
+# tensorflow>=2.8.0
+# torch>=1.11.0
+
+# Data Visualization
+matplotlib>=3.5.0
+seaborn>=0.11.0
+
+# Jupyter Notebook
+jupyter>=1.0.0
+ipykernel>=6.0.0
+
+# Model Persistence
+joblib>=1.1.0
+pickle5>=0.0.11
+
+# Database Connection (untuk load data dari MongoDB)
+pymongo>=4.0.0
+
+# Data Processing
+openpyxl>=3.0.0  # Untuk read Excel files
+
+# Evaluation Metrics
+scikit-plot>=0.3.7
+
+# Hyperparameter Tuning (optional)
+# optuna>=2.10.0
+
