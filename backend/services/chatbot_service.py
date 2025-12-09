@@ -700,7 +700,6 @@ FORMAT RESPONSE YANG RAPI (Plain Text, NO Markdown):
             print(f"[ERROR] Retrieval error: {e}")
             context_text = ""
         
-        # Generate final response with STRONG formatting instruction
         final_prompt = f"""Anda adalah Learning Buddy, asisten pembelajaran yang ramah dan profesional.
 
 {user_profile_str}
