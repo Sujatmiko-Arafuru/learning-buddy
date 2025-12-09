@@ -160,6 +160,7 @@ Kategori (Hanya tulis satu kata dari daftar di atas):"""
     def _classify_question(self, question: str, history_str: str = "") -> str:
         """Classify question intent"""
         if not self.llm or not self.router_prompt:
+            print("[WARN] LLM or router_prompt not initialized, using GENERAL category")
             return 'GENERAL'
         
         try:
@@ -178,10 +179,14 @@ Kategori (Hanya tulis satu kata dari daftar di atas):"""
             return 'GENERAL'
             
         except Exception as e:
+            error_str = str(e)
             # Re-raise rate limit errors
-            if "429" in str(e) or "rate_limit_exceeded" in str(e):
+            if "429" in error_str or "rate_limit_exceeded" in error_str:
                 raise e
             print(f"[ERROR] Router error: {e}")
+            print(f"[ERROR] Error type: {type(e).__name__}")
+            import traceback
+            traceback.print_exc()
             return 'GENERAL'
     
     def _get_chat_history_string(self, email: str) -> str:
@@ -298,15 +303,16 @@ Kategori (Hanya tulis satu kata dari daftar di atas):"""
         user_profile_str = ""
         
         try:
-            user_data = collections['users'].find_one({'email': email})
-            
-            if user_data:
-                user_name = user_data.get('name', user_data.get('name', 'Sobat Buddy'))
+            if collections.get('users') is not None:
+                user_data = collections['users'].find_one({'email': email})
                 
-                interest = user_data.get('interest', '-')
-                occupation = user_data.get('occupation', '-')
-                
-                user_profile_str = f"""
+                if user_data:
+                    user_name = user_data.get('name', user_data.get('name', 'Sobat Buddy'))
+                    
+                    interest = user_data.get('interest', '-')
+                    occupation = user_data.get('occupation', '-')
+                    
+                    user_profile_str = f"""
 INFORMASI PENGGUNA YANG SEDANG LOGIN:
 - Nama Panggilan: {user_name}
 - Email: {email}
@@ -314,6 +320,7 @@ INFORMASI PENGGUNA YANG SEDANG LOGIN:
 """
         except Exception as e:
             print(f"[WARN] Gagal mengambil profil user: {e}")
+        
         if not self.vectordb:
             return self._generate_fallback_response(email, question, category)
         
@@ -1080,11 +1087,19 @@ def get_chatbot_service() -> ChatbotService:
             _chatbot_instance = ChatbotService()
         except Exception as e:
             print(f"[ERROR] Failed to initialize chatbot service: {e}")
+            print(f"[ERROR] Error type: {type(e).__name__}")
+            import traceback
+            traceback.print_exc()
             print("[INFO] Chatbot will use fallback mode")
+            # Create a minimal instance that will use fallback
             _chatbot_instance = ChatbotService.__new__(ChatbotService)
             _chatbot_instance.llm = None
             _chatbot_instance.vectordb = None
+            _chatbot_instance.embedding_model = None
+            _chatbot_instance.router_prompt = None
             _chatbot_instance.chat_histories = {}
+            _chatbot_instance.GROQ_API_KEYS = []
+            _chatbot_instance.current_key_index = 0
     
     return _chatbot_instance
 

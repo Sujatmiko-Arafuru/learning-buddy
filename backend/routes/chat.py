@@ -56,14 +56,30 @@ def chat():
         if USE_RAG_CHATBOT:
             try:
                 chatbot = get_chatbot_service()
+                if chatbot is None:
+                    raise ValueError("Chatbot service is None")
+                
+                # Check if chatbot is properly initialized
+                if chatbot.llm is None:
+                    print("[WARN] Chatbot LLM not initialized, using fallback")
+                    raise ValueError("Chatbot LLM not initialized")
+                
                 result = chatbot.chat(email, message)
                 
-                return jsonify({
-                    'success': True,
-                    'data': result
-                }), 200
+                # Check if result is valid
+                if result and isinstance(result, dict) and 'response' in result:
+                    return jsonify({
+                        'success': True,
+                        'data': result
+                    }), 200
+                else:
+                    raise ValueError(f"Invalid chatbot response: {result}")
+                    
             except Exception as e:
                 print(f"[ERROR] RAG chatbot failed: {e}")
+                print(f"[ERROR] Error type: {type(e).__name__}")
+                import traceback
+                traceback.print_exc()
                 print("[INFO] Falling back to simple chat")
                 # Continue to fallback implementation below
         
