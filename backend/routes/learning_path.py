@@ -213,3 +213,104 @@ def get_course_levels():
             pass
         return jsonify({'success': False, 'error': str(e)}), 500
 
+@learning_path_bp.route('/tutorials/by-course-name', methods=['GET'])
+def get_tutorials_by_course_name():
+    """Get tutorials filtered by course_name from LP+Course collection"""
+    course_name = request.args.get('course_name')
+
+    if not course_name:
+        return jsonify({'success': False, 'error': 'course_name parameter is required'}), 400
+
+    try:
+        # DECODE URL jika perlu
+        import urllib.parse
+        course_name = urllib.parse.unquote(course_name)
+
+        print(f"[DEBUG] Getting tutorials for course: {course_name}")
+
+        # Langsung query MongoDB LP+Course collection
+        from db import db
+        if db is None:
+            raise Exception('Database not connected')
+
+        # 1. Coba LP+Course collection (utama)
+        lp_course_coll = db.get_collection('LP+Course')
+        if lp_course_coll is not None:
+            # Query exact match untuk course_name
+            tutorials_cursor = lp_course_coll.find(
+                {'course_name': course_name},
+                {'_id': 0, 'tutorial_title': 1, 'course_name': 1, 'learning_path_name': 1, 'course_level_str': 1}
+            )
+
+            tutorials = list(tutorials_cursor)
+            print(f"[DEBUG] Found {len(tutorials)} raw tutorials in LP+Course")
+
+            # HAPUS DUPLIKAT berdasarkan tutorial_title
+            unique_tutorials = []
+            seen_titles = set()
+
+            for tutorial in tutorials:
+                title = tutorial.get('tutorial_title')
+                if title and title not in seen_titles:
+                    seen_titles.add(title)
+                    unique_tutorials.append(tutorial)
+
+            print(f"[DEBUG] After deduplication: {len(unique_tutorials)} unique tutorials")
+
+            # PERBAIKAN DISINI: HANYA "Ujian Akhir" yang dianggap exam
+            def sort_key(tutorial):
+                title = tutorial.get('tutorial_title', '').strip()
+                # HANYA "Ujian Akhir" yang dianggap ujian, yang lain tutorial biasa
+                if title.lower() == 'ujian akhir':
+                    return (1, title)  # 1 untuk taruh di bawah (sebagai exam)
+                else:
+                    return (0, title)  # 0 untuk taruh di atas (sebagai tutorial)
+
+            # Sort tutorial: semua tutorial biasa dulu, baru Ujian Akhir di akhir
+            sorted_tutorials = sorted(unique_tutorials, key=sort_key)
+
+            # Format the data
+            formatted_tutorials = []
+            for idx, tutorial in enumerate(sorted_tutorials, 1):
+                tutorial_title = tutorial.get('tutorial_title', '').strip()
+                # HANYA "Ujian Akhir" yang di-mark sebagai exam
+                is_exam = tutorial_title.lower() == 'ujian akhir'
+
+                formatted_tutorials.append({
+                    'tutorial_id': idx,
+                    'course_name': tutorial.get('course_name'),
+                    'tutorial_title': tutorial_title,
+                    'learning_path_name': tutorial.get('learning_path_name'),
+                    'course_level_str': tutorial.get('course_level_str'),
+                    'is_exam': is_exam,  # HANYA true untuk "Ujian Akhir"
+                    'sort_order': 1 if is_exam else 0,
+                    'type': 'exam' if is_exam else 'tutorial'  # Tambah field type
+                })
+
+            if formatted_tutorials:
+                # Hitung berapa yang exam (hanya Ujian Akhir)
+                exam_count = sum(1 for t in formatted_tutorials if t.get('is_exam'))
+
+                return jsonify({
+                    'success': True, 
+                    'data': formatted_tutorials, 
+                    'source': 'mongodb_lp_course',
+                    'course_name': course_name,
+                    'total_tutorials': len(formatted_tutorials),
+                    'exam_tutorials': exam_count,
+                    'regular_tutorials': len(formatted_tutorials) - exam_count,
+                    'message': f'Ditemukan {len(formatted_tutorials)} materi ({exam_count} ujian akhir)'
+                }), 200
+
+        return jsonify({
+            'success': True, 
+            'data': [], 
+            'message': f'Tidak ada materi ditemukan untuk course: {course_name}',
+        }), 200
+
+    except Exception as e:
+        import traceback
+        print(f"[ERROR] get_tutorials_by_course_name error: {e}")
+        traceback.print_exc()
+        return jsonify({'success': False, 'error': str(e)}), 500
+

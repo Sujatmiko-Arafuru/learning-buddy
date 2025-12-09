@@ -35,6 +35,7 @@ from routes.chat import chat_bp
 from routes.personalization import personalization_bp
 from routes.assessment import assessment_bp
 from routes.progress_update import progress_update_bp
+from routes.exam import exam_bp
 
 
 # ============================
@@ -50,6 +51,8 @@ app.register_blueprint(questions_bp, url_prefix='/api')
 app.register_blueprint(chat_bp, url_prefix='/api')
 app.register_blueprint(personalization_bp, url_prefix='/api')
 app.register_blueprint(assessment_bp, url_prefix='/api')
+app.register_blueprint(progress_update_bp, url_prefix='/api')
+app.register_blueprint(exam_bp, url_prefix='/api')
 
 # ============================
 # HEALTH CHECK

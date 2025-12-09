@@ -328,7 +328,17 @@ const Dashboard: React.FC = () => {
                                 : "Durasi tidak tersedia"}
                             </div>
                           </div>
-                          <Button variant="outline-primary" size="sm">
+                          <Button 
+                            variant="outline-primary" 
+                            size="sm"
+                            onClick={() => {
+                              if (course.course_name) {
+                                navigate(`/course/${encodeURIComponent(course.course_name)}`, {
+                                  state: { fromDashboard: true }
+                                });
+                              }
+                            }}
+                          >
                             Lihat
                           </Button>
                         </li>
@@ -367,7 +377,17 @@ const Dashboard: React.FC = () => {
                         <small className="text-muted">
                           Skor: {course.score.toFixed(1)}
                         </small>
-                        <Button variant="primary" size="sm">
+                        <Button 
+                          variant="primary" 
+                          size="sm"
+                          onClick={() => {
+                            if (course.course_name) {
+                              navigate(`/course/${encodeURIComponent(course.course_name)}`, {
+                                state: { fromDashboard: true, fromRecommendation: true }
+                              });
+                            }
+                          }}
+                        >
                           Lihat Detail
                         </Button>
                       </div>

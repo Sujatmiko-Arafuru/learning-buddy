@@ -9,7 +9,10 @@ import Register from '../pages/Register';
 import Personalization from '../pages/Personalization';
 import Assessment from '../pages/Assessment';
 import ProtectedRoute from '../components/ProtectedRoute';
-
+import MaterialDetail from "../pages/MaterialDetail";
+import CourseDetail from "../pages/CourseDetail";
+import Exam from "../pages/Exam";
+import ExamResult from "../pages/ExamResult";
 const AppRoutes: React.FC = () => {
   return (
     <Routes>
@@ -61,6 +64,38 @@ const AppRoutes: React.FC = () => {
         element={
           <ProtectedRoute requirePersonalization={true}>
             <Chat />
+          </ProtectedRoute>
+        } 
+      />
+      <Route 
+        path="/course/:courseName" 
+        element={
+          <ProtectedRoute requirePersonalization={true}>
+            <CourseDetail />
+          </ProtectedRoute>
+        } 
+      />
+      <Route 
+        path="/material/:courseName/:tutorialTitle" 
+        element={
+          <ProtectedRoute requirePersonalization={true}>
+            <MaterialDetail />
+          </ProtectedRoute>
+        } 
+      />
+      <Route 
+        path="/exam/:courseName" 
+        element={
+          <ProtectedRoute requirePersonalization={true}>
+            <Exam />
+          </ProtectedRoute>
+        } 
+      />
+      <Route 
+        path="/exam/:courseName/result" 
+        element={
+          <ProtectedRoute requirePersonalization={true}>
+            <ExamResult />
           </ProtectedRoute>
         } 
       />

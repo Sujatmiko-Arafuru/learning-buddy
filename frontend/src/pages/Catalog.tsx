@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { Card, Row, Col, Form, Spinner, Alert, Badge } from 'react-bootstrap';
+import { useNavigate } from 'react-router-dom';
+import { Card, Row, Col, Form, Spinner, Alert, Badge, Button } from 'react-bootstrap';
 import Container from '../components/layout/Container';
 import { learningPathApi, LearningPath, Course } from '../api/learningPath';
 import { usersApi } from '../api/users';
@@ -12,6 +13,7 @@ interface MapInterest {
 }
 
 const Catalog: React.FC = () => {
+  const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [learningPaths, setLearningPaths] = useState<LearningPath[]>([]);
   const [courses, setCourses] = useState<Course[]>([]);
@@ -206,9 +208,18 @@ const Catalog: React.FC = () => {
                   <p className="text-muted small">
                     ⏱️ {course.hours_to_study || 0} jam belajar
                   </p>
-                  <button className="btn btn-primary btn-sm w-100">
+                  <Button 
+                    className="btn-primary btn-sm w-100"
+                    onClick={() => {
+                      if (course.course_name) {
+                        navigate(`/course/${encodeURIComponent(course.course_name)}`, {
+                          state: { fromCatalog: true }
+                        });
+                      }
+                    }}
+                  >
                     Lihat Detail
-                  </button>
+                  </Button>
                 </Card.Body>
               </Card>
             </Col>
