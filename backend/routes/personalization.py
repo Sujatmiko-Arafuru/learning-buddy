@@ -60,9 +60,90 @@ def save_map_interest_selection():
         if not isinstance(selections, list) or len(selections) == 0:
             return jsonify({'success': False, 'error': 'Minimal satu Map Interest harus dipilih'}), 400
 
+        # Extract learning path IDs from selections
+        all_learning_path_ids = []
+        
+        # Map categories to learning path IDs (same as in save_current_interest_answers)
+        category_to_lp_ids = {
+            'Mobile Development': [2, 12, 10],
+            'Artificial Intelligence': [1, 8, 11],
+            'Cloud Computing': [6, 9],
+            'Web Development': [3, 4, 7, 13]
+        }
+        
+        # Get learning path IDs from database
+        from db import db
+        if db is not None:
+            lp_coll = db.get_collection('Learning_Path')
+            
+            for selection in selections:
+                selection_id = selection.get('id', '')
+                selection_category = selection.get('category', '')
+                selection_name = selection.get('name', '')
+                
+                print(f"[PERSONALIZATION] Processing selection: id='{selection_id}', name='{selection_name}', category='{selection_category}'")
+                
+                # Method 1: Try to use id as learning_path_id directly (PRIORITAS TINGGI)
+                if selection_id:
+                    try:
+                        lp_id = int(selection_id)
+                        # Verify it exists in database
+                        lp_doc = lp_coll.find_one(
+                            {'learning_path_id': lp_id},
+                            {'_id': 0, 'learning_path_id': 1, 'learning_path_name': 1}
+                        )
+                        if lp_doc:
+                            all_learning_path_ids.append(lp_id)
+                            print(f"[PERSONALIZATION] Found LP ID {lp_id} ({lp_doc.get('learning_path_name')}) from selection id")
+                            continue  # Skip other methods if found by ID
+                        else:
+                            # If not found in DB, still add it (might be valid)
+                            all_learning_path_ids.append(lp_id)
+                            print(f"[PERSONALIZATION] Using selection id '{selection_id}' as LP ID {lp_id} (not found in DB but assuming valid)")
+                            continue
+                    except (ValueError, TypeError) as e:
+                        print(f"[PERSONALIZATION] Error parsing selection id '{selection_id}': {e}")
+                
+                # Method 2: Use category mapping
+                if selection_category and selection_category in category_to_lp_ids:
+                    lp_ids = category_to_lp_ids[selection_category]
+                    all_learning_path_ids.extend(lp_ids)
+                    print(f"[PERSONALIZATION] Mapped category '{selection_category}' to LP IDs: {lp_ids}")
+                    continue  # Skip name matching if found by category
+                
+                # Method 3: Try to find by name (exact match or case-insensitive)
+                if selection_name:
+                    # Try exact match first
+                    lp_docs = list(lp_coll.find(
+                        {'learning_path_name': {'$regex': f'^{selection_name}$', '$options': 'i'}},
+                        {'_id': 0, 'learning_path_id': 1, 'learning_path_name': 1}
+                    ))
+                    if lp_docs:
+                        for lp_doc in lp_docs:
+                            lp_id = lp_doc.get('learning_path_id')
+                            if lp_id:
+                                all_learning_path_ids.append(lp_id)
+                                print(f"[PERSONALIZATION] Found LP ID {lp_id} ({lp_doc.get('learning_path_name')}) from selection name '{selection_name}'")
+                    else:
+                        # Try partial match
+                        lp_docs = list(lp_coll.find(
+                            {'learning_path_name': {'$regex': selection_name, '$options': 'i'}},
+                            {'_id': 0, 'learning_path_id': 1, 'learning_path_name': 1}
+                        ))
+                        for lp_doc in lp_docs:
+                            lp_id = lp_doc.get('learning_path_id')
+                            if lp_id:
+                                all_learning_path_ids.append(lp_id)
+                                print(f"[PERSONALIZATION] Found LP ID {lp_id} ({lp_doc.get('learning_path_name')}) from selection name '{selection_name}' (partial match)")
+        
+        # Remove duplicates
+        all_learning_path_ids = list(set(all_learning_path_ids))
+        print(f"[PERSONALIZATION] Final learning path IDs: {all_learning_path_ids}")
+        
         update_doc = {
             'preferences.map_interest_mode': 'manual',
             'preferences.map_interest_choices': selections,
+            'preferences.selected_learning_path_ids': all_learning_path_ids,
             'personalization_selected_at': datetime.utcnow().isoformat(),
         }
 
@@ -70,7 +151,13 @@ def save_map_interest_selection():
         if result.matched_count == 0:
             return jsonify({'success': False, 'error': 'User not found'}), 404
 
-        return jsonify({'success': True, 'message': 'Pilihan Map Interest tersimpan'}), 200
+        return jsonify({
+            'success': True, 
+            'message': 'Pilihan Map Interest tersimpan',
+            'data': {
+                'selected_learning_path_ids': all_learning_path_ids
+            }
+        }), 200
     except RuntimeError as err:
         return jsonify({'success': False, 'error': str(err)}), 500
     except Exception as err:
@@ -374,5 +461,115 @@ def save_current_interest_answers():
     except RuntimeError as err:
         return jsonify({'success': False, 'error': str(err)}), 500
     except Exception as err:
+        return jsonify({'success': False, 'error': str(err)}), 500
+
+
+@personalization_bp.route('/personalization/fix-learning-paths', methods=['POST'])
+def fix_user_learning_paths():
+    """Fix selected_learning_path_ids for users who have map_interest_choices but missing selected_learning_path_ids"""
+    try:
+        users_coll = _require_collection('users')
+        data = request.get_json(silent=True) or {}
+        email = (data.get('email') or '').strip().lower()
+        
+        if not email:
+            return jsonify({'success': False, 'error': 'Email is required'}), 400
+        
+        user = users_coll.find_one({'email': email}, {'_id': 0})
+        if not user:
+            return jsonify({'success': False, 'error': 'User not found'}), 404
+        
+        preferences = user.get('preferences', {})
+        map_interest_choices = preferences.get('map_interest_choices', [])
+        existing_selected_ids = preferences.get('selected_learning_path_ids', [])
+        
+        # If already has selected_learning_path_ids, no need to fix
+        if existing_selected_ids and len(existing_selected_ids) > 0:
+            return jsonify({
+                'success': True,
+                'message': 'User already has selected_learning_path_ids',
+                'data': {
+                    'selected_learning_path_ids': existing_selected_ids
+                }
+            }), 200
+        
+        if not map_interest_choices or len(map_interest_choices) == 0:
+            return jsonify({'success': False, 'error': 'User has no map_interest_choices to fix'}), 400
+        
+        # Extract learning path IDs from map_interest_choices (same logic as save_map_interest_selection)
+        all_learning_path_ids = []
+        
+        category_to_lp_ids = {
+            'Mobile Development': [2, 12, 10],
+            'Artificial Intelligence': [1, 8, 11],
+            'Cloud Computing': [6, 9],
+            'Web Development': [3, 4, 7, 13]
+        }
+        
+        from db import db
+        if db is not None:
+            lp_coll = db.get_collection('Learning_Path')
+            
+            for choice in map_interest_choices:
+                choice_id = choice.get('id', '')
+                choice_category = choice.get('category', '')
+                choice_name = choice.get('name', '')
+                
+                # Method 1: Try to use id as learning_path_id directly
+                if choice_id:
+                    try:
+                        lp_id = int(choice_id)
+                        lp_doc = lp_coll.find_one(
+                            {'learning_path_id': lp_id},
+                            {'_id': 0, 'learning_path_id': 1}
+                        )
+                        if lp_doc:
+                            all_learning_path_ids.append(lp_id)
+                            continue
+                    except (ValueError, TypeError):
+                        pass
+                
+                # Method 2: Use category mapping
+                if choice_category and choice_category in category_to_lp_ids:
+                    all_learning_path_ids.extend(category_to_lp_ids[choice_category])
+                    continue
+                
+                # Method 3: Try to find by name
+                if choice_name:
+                    lp_docs = list(lp_coll.find(
+                        {'learning_path_name': {'$regex': f'^{choice_name}$', '$options': 'i'}},
+                        {'_id': 0, 'learning_path_id': 1}
+                    ))
+                    for lp_doc in lp_docs:
+                        lp_id = lp_doc.get('learning_path_id')
+                        if lp_id:
+                            all_learning_path_ids.append(lp_id)
+        
+        # Remove duplicates
+        all_learning_path_ids = list(set(all_learning_path_ids))
+        
+        # Update user
+        result = users_coll.update_one(
+            {'email': email},
+            {'$set': {'preferences.selected_learning_path_ids': all_learning_path_ids}}
+        )
+        
+        if result.matched_count == 0:
+            return jsonify({'success': False, 'error': 'Failed to update user'}), 500
+        
+        return jsonify({
+            'success': True,
+            'message': 'Learning path IDs fixed successfully',
+            'data': {
+                'selected_learning_path_ids': all_learning_path_ids,
+                'map_interest_choices': map_interest_choices
+            }
+        }), 200
+        
+    except RuntimeError as err:
+        return jsonify({'success': False, 'error': str(err)}), 500
+    except Exception as err:
+        import traceback
+        traceback.print_exc()
         return jsonify({'success': False, 'error': str(err)}), 500
 

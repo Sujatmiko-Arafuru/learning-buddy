@@ -29,7 +29,7 @@ import {
   CategoryScale,
   LinearScale
 } from "chart.js";
-import { Doughnut, Bar } from "react-chartjs-2";
+import { Bar } from "react-chartjs-2";
 
 ChartJS.register(
   ArcElement,
@@ -77,14 +77,39 @@ const Dashboard: React.FC = () => {
         user?.skill_assessment &&
         Object.keys(user.skill_assessment).length > 0;
 
-      const hasPersonalization =
-        user?.preferences?.selected_learning_path_ids?.length ||
-        user?.preferences?.map_interest_choices?.length;
+      const hasSelectedLearningPaths = Boolean(user?.preferences?.selected_learning_path_ids?.length);
+      const hasMapInterestChoices = Boolean(user?.preferences?.map_interest_choices?.length);
+      const hasInterestAssessment = Boolean(user?.interest_assessment?.current_interest_answers?.length);
+      
+      // User has personalization if:
+      // 1. Has selected learning paths, OR
+      // 2. Has map interest choices AND progress (from assessments), OR
+      // 3. Has interest assessment AND progress
+      const hasPersonalization = hasSelectedLearningPaths || 
+        (hasMapInterestChoices && hasProgress) ||
+        (hasInterestAssessment && hasProgress);
 
-      // Belum pernah onboarding sama sekali
-      if (!hasProgress && !hasSkillAssessment && !hasPersonalization) {
+      // Belum pernah onboarding sama sekali - hanya redirect jika benar-benar tidak ada data sama sekali
+      if (!hasProgress && !hasSkillAssessment && !hasPersonalization && !hasMapInterestChoices && !hasInterestAssessment) {
         navigate("/personalize");
         return;
+      }
+
+      // If user has progress from assessments but no selected_learning_path_ids, try to fix it
+      if (hasProgress && !hasSelectedLearningPaths && (hasMapInterestChoices || hasInterestAssessment)) {
+        console.log('[DASHBOARD] User has progress but missing selected_learning_path_ids, attempting to fix...');
+        try {
+          // Try to fix learning paths
+          await fetch(`${process.env.REACT_APP_API_URL || 'http://localhost:5000'}/api/personalization/fix-learning-paths`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ email: userEmail }),
+          });
+        } catch (err) {
+          console.error('[DASHBOARD] Failed to fix learning paths:', err);
+        }
       }
 
       loadDashboardData();
@@ -112,6 +137,11 @@ const Dashboard: React.FC = () => {
         learningPathApi.getLearningPaths(),
         learningPathApi.getCourses(undefined, selectedLpIds),
       ]);
+
+      console.log('[DASHBOARD] API Response:', dashboardStats);
+      console.log('[DASHBOARD] Stats Data:', dashboardStats?.data);
+      console.log('[DASHBOARD] Cards:', dashboardStats?.data?.cards);
+      console.log('[DASHBOARD] Total Courses:', dashboardStats?.data?.cards?.total);
 
       setStats(dashboardStats.data);
       setRecommendations(recs.recommended_courses || []);
@@ -176,16 +206,7 @@ const Dashboard: React.FC = () => {
       {/* CARD STATISTIK */}
       {stats?.cards && (
         <Row className="mb-4">
-          <Col md={4}>
-            <Card className="text-center shadow-sm" style={{ background: "#dbeafe" }}>
-              <Card.Body>
-                <h3>{stats.cards.total}</h3>
-                <p className="mb-0 text-muted">Total Kursus</p>
-              </Card.Body>
-            </Card>
-          </Col>
-
-          <Col md={4}>
+          <Col md={6}>
             <Card className="text-center shadow-sm" style={{ background: "#dcfce7" }}>
               <Card.Body>
                 <h3>{stats.cards.completed}</h3>
@@ -194,7 +215,7 @@ const Dashboard: React.FC = () => {
             </Card>
           </Col>
 
-          <Col md={4}>
+          <Col md={6}>
             <Card className="text-center shadow-sm" style={{ background: "#fef3c7" }}>
               <Card.Body>
                 <h3>{stats.cards.in_progress}</h3>
@@ -207,43 +228,8 @@ const Dashboard: React.FC = () => {
 
       {/* CHART SECTION */}
       <Row className="mb-4">
-        {/* DOUGHNUT */}
-        <Col md={6}>
-          <Card className="p-3 shadow-sm">
-            <h5 className="text-center mb-3">Status Kursus</h5>
-            <div style={{ height: "350px" }}>
-              {stats?.doughnut ? (
-                <Doughnut
-                  data={{
-                    labels: ["Selesai", "Sedang Belajar", "Belum Dimulai"],
-                    datasets: [
-                      {
-                        data: [
-                          stats.doughnut.completed,
-                          stats.doughnut.in_progress,
-                          stats.doughnut.not_started
-                        ],
-                        backgroundColor: ["#86efac", "#fde68a", "#e5e7eb"],
-                        borderWidth: 1,
-                      }
-                    ],
-                  }}
-                  options={{
-                    maintainAspectRatio: false,
-                    plugins: {
-                      legend: { position: "bottom" }
-                    }
-                  }}
-                />
-              ) : (
-                <p className="text-muted text-center small">Tidak ada data</p>
-              )}
-            </div>
-          </Card>
-        </Col>
-
         {/* BAR CHART */}
-        <Col md={6}>
+        <Col md={12}>
           <Card className="p-3 shadow-sm">
             <h5 className="text-center mb-3">Top 5 Kursus</h5>
             <div style={{ height: "350px" }}>

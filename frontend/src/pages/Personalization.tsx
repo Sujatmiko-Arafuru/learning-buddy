@@ -59,42 +59,84 @@ const Personalization = () => {
     }
 
     let isMounted = true;
+    let hasNavigated = false; // Flag to prevent multiple navigations
+    let checkCount = 0; // Prevent infinite loops
+    const MAX_CHECKS = 1; // Only check once
 
     const checkExistingProgress = async () => {
+      // Prevent infinite loops
+      if (checkCount >= MAX_CHECKS) {
+        if (isMounted) {
+          setCheckingExisting(false);
+        }
+        return;
+      }
+      
+      checkCount++;
+
       try {
         const [progress, user] = await Promise.all([
-          resourcesApi.getProgress(email),
+          resourcesApi.getProgress(email).catch(() => []),
           usersApi
             .getUserByEmail(email)
             .then((res) => res)
             .catch(() => null),
         ]);
 
-        const hasProgress = progress.length > 0;
-        const hasPersonalization =
-          Boolean(user?.preferences?.map_interest_choices?.length) ||
-          Boolean(user?.interest_assessment?.current_interest_answers?.length) ||
-          Boolean(user?.onboarding_completed);
+        // Check if user has completed personalization (has selected learning paths)
+        const hasSelectedLearningPaths = Boolean(user?.preferences?.selected_learning_path_ids?.length);
+        
+        // Check if user has map interest choices (manual selection)
+        const hasMapInterestChoices = Boolean(user?.preferences?.map_interest_choices?.length);
+        
+        // Check if user has completed interest assessment (guided flow)
+        const hasInterestAssessment = Boolean(user?.interest_assessment?.current_interest_answers?.length);
+        
+        // Check if user has onboarding completed
+        const hasOnboarding = Boolean(user?.onboarding_completed);
+        
+        // User has completed personalization if they have selected learning paths OR
+        // (map interest choices AND progress records from assessments)
+        const hasPersonalization = hasSelectedLearningPaths || 
+          (hasMapInterestChoices && progress.length > 0) ||
+          (hasInterestAssessment && progress.length > 0) ||
+          hasOnboarding;
 
-        if ((hasProgress || hasPersonalization) && isMounted) {
+        if (hasPersonalization && isMounted && !hasNavigated) {
+          hasNavigated = true;
+          console.log('[PERSONALIZATION] User has completed personalization, redirecting to dashboard');
+          console.log('[PERSONALIZATION] Progress count:', progress.length);
+          console.log('[PERSONALIZATION] Selected LP IDs:', user?.preferences?.selected_learning_path_ids);
+          console.log('[PERSONALIZATION] Map interest choices:', user?.preferences?.map_interest_choices?.length);
+          setCheckingExisting(false);
           navigate('/dashboard', { replace: true });
           return;
         }
       } catch (error) {
         console.error('Failed to check existing personalization:', error);
       } finally {
-        if (isMounted) {
+        if (isMounted && !hasNavigated) {
           setCheckingExisting(false);
         }
       }
     };
 
     checkExistingProgress();
+    
+    // Safety timeout: if check takes too long, stop loading anyway
+    const timeoutId = setTimeout(() => {
+      if (isMounted && !hasNavigated) {
+        console.log('[PERSONALIZATION] Check timeout, stopping loading');
+        setCheckingExisting(false);
+      }
+    }, 5000); // 5 seconds timeout
 
     return () => {
       isMounted = false;
+      clearTimeout(timeoutId);
     };
-  }, [email, navigate]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [email]); // Remove navigate from dependencies to prevent re-runs
 
   useEffect(() => {
     const loadMapInterests = async () => {

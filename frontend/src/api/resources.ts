@@ -76,10 +76,17 @@ export const resourcesApi = {
   // ⭐⭐ API BARU UNTUK DASHBOARD ⭐⭐
   getDashboardStats: async (email: string) => {
     try {
+      console.log('[API] Calling /dashboard/stats with email:', email);
       const response = await api.get('/dashboard/stats', { params: { email } });
+      console.log('[API] Dashboard stats response:', response.data);
+      console.log('[API] Response success:', response.data?.success);
+      console.log('[API] Response data:', response.data?.data);
+      console.log('[API] Cards total:', response.data?.data?.cards?.total);
       return response.data; // { success, data }
-    } catch (error) {
-      console.error('Error fetching dashboard stats:', error);
+    } catch (error: any) {
+      console.error('[API] Error fetching dashboard stats:', error);
+      console.error('[API] Error response:', error.response?.data);
+      console.error('[API] Error status:', error.response?.status);
       throw error;
     }
   },

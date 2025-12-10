@@ -37,10 +37,31 @@ def get_dashboard_stats():
                             for choice in map_interest_choices:
                                 choice_name = choice.get('name', '').strip()
                                 choice_id = choice.get('id', '')
+                                choice_category = choice.get('category', '').strip()
                                 
-                                print(f"[DASHBOARD] Processing map interest: name='{choice_name}', id='{choice_id}'")
+                                print(f"[DASHBOARD] Processing map interest: name='{choice_name}', id='{choice_id}', category='{choice_category}'")
                                 
-                                # Coba cari berdasarkan name
+                                # PRIORITAS 1: Coba berdasarkan id langsung (paling akurat)
+                                if choice_id:
+                                    try:
+                                        lp_id_int = int(choice_id)
+                                        lp_doc = lp_coll.find_one(
+                                            {'learning_path_id': lp_id_int},
+                                            {'_id': 0, 'learning_path_id': 1, 'learning_path_name': 1}
+                                        )
+                                        if lp_doc:
+                                            all_lp_ids.append(lp_id_int)
+                                            print(f"[DASHBOARD] Found LP ID {lp_id_int} ({lp_doc.get('learning_path_name')}) from choice id '{choice_id}'")
+                                            continue  # Skip to next choice if found by ID
+                                        else:
+                                            # Jika tidak ditemukan, tetap tambahkan karena mungkin valid
+                                            all_lp_ids.append(lp_id_int)
+                                            print(f"[DASHBOARD] Using choice id '{choice_id}' as LP ID {lp_id_int} (not found in DB but assuming valid)")
+                                            continue  # Skip to next choice
+                                    except Exception as e:
+                                        print(f"[DASHBOARD] Error parsing choice id '{choice_id}': {e}")
+                                
+                                # PRIORITAS 2: Coba cari berdasarkan name (exact match atau case-insensitive)
                                 if choice_name:
                                     # Case-insensitive search
                                     lp_docs = list(lp_coll.find(
@@ -54,8 +75,9 @@ def get_dashboard_stats():
                                             if lp_id:
                                                 all_lp_ids.append(lp_id)
                                                 print(f"[DASHBOARD] Found LP ID {lp_id} for '{choice_name}'")
+                                        continue  # Skip pattern matching if found by name
                                     
-                                    # Jika tidak ditemukan, coba map berdasarkan name patterns
+                                    # PRIORITAS 3: Jika tidak ditemukan, coba map berdasarkan name patterns
                                     if not lp_docs:
                                         name_lower = choice_name.lower()
                                         print(f"[DASHBOARD] Name '{choice_name}' not found in DB, trying pattern matching...")
@@ -96,26 +118,58 @@ def get_dashboard_stats():
                                             # Cloud Computing
                                             all_lp_ids.extend([6, 9])
                                             print(f"[DASHBOARD] Mapped '{choice_name}' to Cloud category: [6, 9]")
+                                        elif 'data scientist' in name_lower or 'data science' in name_lower:
+                                            # Data Scientist - learning_path_id 5
+                                            all_lp_ids.append(5)
+                                            print(f"[DASHBOARD] Mapped '{choice_name}' to Data Scientist (LP ID: 5)")
+                                        elif 'devops' in name_lower:
+                                            # DevOps Engineer - learning_path_id 6
+                                            all_lp_ids.append(6)
+                                            print(f"[DASHBOARD] Mapped '{choice_name}' to DevOps Engineer (LP ID: 6)")
+                                        elif 'front-end' in name_lower or 'frontend' in name_lower:
+                                            # Front-End Web Developer - learning_path_id 7
+                                            all_lp_ids.append(7)
+                                            print(f"[DASHBOARD] Mapped '{choice_name}' to Front-End Web Developer (LP ID: 7)")
+                                        elif 'gen ai' in name_lower or 'generative ai' in name_lower:
+                                            # Gen AI Engineer - learning_path_id 8
+                                            all_lp_ids.append(8)
+                                            print(f"[DASHBOARD] Mapped '{choice_name}' to Gen AI Engineer (LP ID: 8)")
+                                        elif 'google cloud' in name_lower:
+                                            # Google Cloud Professional - learning_path_id 9
+                                            all_lp_ids.append(9)
+                                            print(f"[DASHBOARD] Mapped '{choice_name}' to Google Cloud Professional (LP ID: 9)")
+                                        elif 'ios' in name_lower:
+                                            # iOS Developer - learning_path_id 10
+                                            all_lp_ids.append(10)
+                                            print(f"[DASHBOARD] Mapped '{choice_name}' to iOS Developer (LP ID: 10)")
+                                        elif 'mlops' in name_lower:
+                                            # MLOps Engineer - learning_path_id 11
+                                            all_lp_ids.append(11)
+                                            print(f"[DASHBOARD] Mapped '{choice_name}' to MLOps Engineer (LP ID: 11)")
+                                        elif 'multi-platform' in name_lower or 'flutter' in name_lower:
+                                            # Multi-Platform App Developer - learning_path_id 12
+                                            all_lp_ids.append(12)
+                                            print(f"[DASHBOARD] Mapped '{choice_name}' to Multi-Platform App Developer (LP ID: 12)")
+                                        elif 'react' in name_lower:
+                                            # React Developer - learning_path_id 13
+                                            all_lp_ids.append(13)
+                                            print(f"[DASHBOARD] Mapped '{choice_name}' to React Developer (LP ID: 13)")
                                 
-                                # Juga coba berdasarkan id - PRIORITAS TINGGI
-                                # Karena id di map_interest_choices mungkin adalah learning_path_id langsung
-                                if choice_id:
-                                    try:
-                                        lp_id_int = int(choice_id)
-                                        lp_doc = lp_coll.find_one(
-                                            {'learning_path_id': lp_id_int},
-                                            {'_id': 0, 'learning_path_id': 1, 'learning_path_name': 1}
-                                        )
-                                        if lp_doc:
-                                            all_lp_ids.append(lp_id_int)
-                                            print(f"[DASHBOARD] Found LP ID {lp_id_int} ({lp_doc.get('learning_path_name')}) from choice id '{choice_id}'")
-                                        else:
-                                            # Jika tidak ditemukan, tetap tambahkan karena mungkin valid
-                                            all_lp_ids.append(lp_id_int)
-                                            print(f"[DASHBOARD] Using choice id '{choice_id}' as LP ID {lp_id_int} (not found in DB but assuming valid)")
-                                    except Exception as e:
-                                        print(f"[DASHBOARD] Error parsing choice id '{choice_id}': {e}")
-                                        pass
+                                # PRIORITAS 4: Coba berdasarkan category jika ada
+                                if choice_category:
+                                    category_lower = choice_category.lower()
+                                    if 'mobile development' in category_lower:
+                                        all_lp_ids.extend([2, 12, 10])
+                                        print(f"[DASHBOARD] Mapped category '{choice_category}' to Mobile Development: [2, 12, 10]")
+                                    elif 'artificial intelligence' in category_lower:
+                                        all_lp_ids.extend([1, 8, 11])
+                                        print(f"[DASHBOARD] Mapped category '{choice_category}' to AI category: [1, 8, 11]")
+                                    elif 'cloud computing' in category_lower:
+                                        all_lp_ids.extend([6, 9])
+                                        print(f"[DASHBOARD] Mapped category '{choice_category}' to Cloud Computing: [6, 9]")
+                                    elif 'web development' in category_lower:
+                                        all_lp_ids.extend([3, 4, 7, 13])
+                                        print(f"[DASHBOARD] Mapped category '{choice_category}' to Web Development: [3, 4, 7, 13]")
                             
                             # Remove duplicates
                             selected_lp_ids = list(set(all_lp_ids))
@@ -129,19 +183,29 @@ def get_dashboard_stats():
         else:
             print(f"[DASHBOARD] User not found for email: {email}")
         
-        print(f"[DASHBOARD] User selected learning path IDs: {selected_lp_ids}")
-        print(f"[DASHBOARD] Number of selected learning paths: {len(selected_lp_ids)}")
+        print(f"[DASHBOARD] ========================================")
+        print(f"[DASHBOARD] USER PREFERENCES SUMMARY")
+        print(f"[DASHBOARD] User selected learning path IDs (RAW): {selected_lp_ids}")
+        print(f"[DASHBOARD] Number of selected learning paths: {len(selected_lp_ids) if selected_lp_ids else 0}")
+        print(f"[DASHBOARD] ========================================")
         
         # Validasi: pastikan selected_lp_ids adalah list of integers
         if selected_lp_ids:
-            selected_lp_ids = [int(lp_id) for lp_id in selected_lp_ids if lp_id is not None]
-            print(f"[DASHBOARD] Validated learning path IDs: {selected_lp_ids}")
+            try:
+                selected_lp_ids = [int(lp_id) for lp_id in selected_lp_ids if lp_id is not None]
+                print(f"[DASHBOARD] Validated learning path IDs: {selected_lp_ids}")
+                print(f"[DASHBOARD] Validated count: {len(selected_lp_ids)}")
+            except Exception as e:
+                print(f"[DASHBOARD] ERROR validating LP IDs: {e}")
+                import traceback
+                traceback.print_exc()
+                selected_lp_ids = []
         
         # 2. Hitung TOTAL KURSUS
-        # PRIORITAS: Hitung dari selected_learning_path_ids karena itu yang user pilih
-        # Fallback ke student_progress jika learning paths tidak ada
+        # TOTAL KURSUS = jumlah semua courses dari learning paths yang user PILIH
+        # Ambil dari selected_learning_path_ids di user preferences
+        # Jika kosong, fallback ke courses yang ada di student_progress
         total_courses = 0
-        total_from_lp = 0
         
         # 3. Ambil SEMUA progress user untuk menghitung completed dan in_progress
         # PASTIKAN TIDAK ADA FILTER APAPUN - ambil semua records
@@ -206,201 +270,190 @@ def get_dashboard_stats():
         if records_without_course_name > 0:
             print(f"[DASHBOARD] WARNING: {records_without_course_name} records without course_name")
         
-        # Hitung dari student_progress untuk perbandingan (BUKAN sumber utama)
-        total_from_progress = len(all_unique_course_names)
-        
+        # HITUNG TOTAL KURSUS dari learning paths yang user pilih
         print(f"[DASHBOARD] ========================================")
-        print(f"[DASHBOARD] Courses from student_progress: {total_from_progress}")
-        print(f"[DASHBOARD] Total unique course names found: {len(all_unique_course_names)}")
-        print(f"[DASHBOARD] All course names from progress ({len(all_unique_course_names)}):")
-        for idx, course_name in enumerate(sorted(list(all_unique_course_names)), 1):
-            print(f"[DASHBOARD]   {idx}. {course_name}")
+        print(f"[DASHBOARD] CALCULATING TOTAL COURSES FROM USER'S SELECTED LEARNING PATHS")
+        print(f"[DASHBOARD] Selected learning path IDs: {selected_lp_ids}")
+        print(f"[DASHBOARD] Number of selected LP IDs: {len(selected_lp_ids) if selected_lp_ids else 0}")
         print(f"[DASHBOARD] ========================================")
         
-        # PRIORITAS 1: Hitung dari selected_learning_path_ids (INI YANG UTAMA!)
-        # Karena ini menunjukkan courses yang user PILIH, bukan yang sudah ada progress
-        # TOTAL KURSUS = jumlah semua courses dari learning paths yang dipilih user
-        
-        # SELALU ambil learning paths dari courses yang user punya (PRIORITAS TINGGI)
-        # Ini memastikan konsistensi untuk semua user, tidak peduli preferences mereka
-        if db is not None:
+        # FALLBACK: Jika selected_lp_ids kosong, coba cari dari courses yang ada di student_progress
+        if (not selected_lp_ids or len(selected_lp_ids) == 0) and db is not None and len(all_unique_course_names) > 0:
             print(f"[DASHBOARD] ========================================")
-            print(f"[DASHBOARD] FINDING LEARNING PATHS FROM USER'S COURSES")
-            print(f"[DASHBOARD] Current selected_lp_ids from preferences: {selected_lp_ids}")
-            print(f"[DASHBOARD] User's courses: {sorted(list(all_unique_course_names)) if len(all_unique_course_names) > 0 else 'None'}")
-            
+            print(f"[DASHBOARD] selected_lp_ids is empty, finding LPs from user's courses")
+            print(f"[DASHBOARD] User's courses: {sorted(list(all_unique_course_names))}")
             try:
-                # Cari learning paths yang mengandung courses yang user punya
                 lp_course_coll = db.get_collection('LP+Course')
                 lp_coll = db.get_collection('Learning_Path')
                 
-                if len(all_unique_course_names) > 0:
-                    # Ambil semua learning paths yang mengandung courses user
-                    courses_with_lp = list(lp_course_coll.find(
-                        {'course_name': {'$in': list(all_unique_course_names)}},
-                        {'_id': 0, 'learning_path_name': 1, 'course_name': 1}
+                # Cari learning paths yang mengandung courses user
+                courses_with_lp = list(lp_course_coll.find(
+                    {'course_name': {'$in': list(all_unique_course_names)}},
+                    {'_id': 0, 'learning_path_name': 1, 'course_name': 1}
+                ))
+                
+                print(f"[DASHBOARD] Found {len(courses_with_lp)} course-LP mappings")
+                
+                # Get unique learning path names
+                lp_names_from_courses = set()
+                for doc in courses_with_lp:
+                    lp_name = doc.get('learning_path_name')
+                    if lp_name:
+                        lp_names_from_courses.add(lp_name)
+                
+                print(f"[DASHBOARD] Learning paths from user's courses: {sorted(list(lp_names_from_courses))}")
+                
+                # Get learning path IDs dari names
+                if lp_names_from_courses:
+                    lp_docs = list(lp_coll.find(
+                        {'learning_path_name': {'$in': list(lp_names_from_courses)}},
+                        {'_id': 0, 'learning_path_id': 1, 'learning_path_name': 1}
                     ))
                     
-                    print(f"[DASHBOARD] Found {len(courses_with_lp)} course-LP mappings")
-                    
-                    # Get unique learning path names
-                    lp_names_from_courses = set()
-                    for doc in courses_with_lp:
-                        lp_name = doc.get('learning_path_name')
-                        if lp_name:
-                            lp_names_from_courses.add(lp_name)
-                    
-                    print(f"[DASHBOARD] Learning paths from user's courses: {sorted(list(lp_names_from_courses))}")
-                    
-                    # Get learning path IDs dari names
-                    if lp_names_from_courses:
-                        lp_docs = list(lp_coll.find(
-                            {'learning_path_name': {'$in': list(lp_names_from_courses)}},
-                            {'_id': 0, 'learning_path_id': 1, 'learning_path_name': 1}
-                        ))
-                        
-                        lp_ids_from_courses = [lp.get('learning_path_id') for lp in lp_docs if lp.get('learning_path_id')]
-                        print(f"[DASHBOARD] Learning path IDs from user's courses: {lp_ids_from_courses}")
-                        
-                        # PRIORITAS: Gunakan learning paths dari courses user
-                        # Karena ini menunjukkan learning paths yang user BENAR-BENAR ambil courses-nya
-                        # Combine dengan preferences untuk memastikan lengkap
-                        if len(lp_ids_from_courses) > 0:
-                            if selected_lp_ids:
-                                # Combine untuk memastikan tidak ada yang terlewat
-                                combined_lp_ids = list(set(selected_lp_ids + lp_ids_from_courses))
-                                print(f"[DASHBOARD] Combined preferences + courses: {combined_lp_ids}")
-                                # Gunakan yang lebih lengkap
-                                if len(combined_lp_ids) >= len(lp_ids_from_courses):
-                                    selected_lp_ids = combined_lp_ids
-                                    print(f"[DASHBOARD] Using combined learning paths: {selected_lp_ids}")
-                                else:
-                                    selected_lp_ids = lp_ids_from_courses
-                                    print(f"[DASHBOARD] Using courses (more complete): {selected_lp_ids}")
-                            else:
-                                selected_lp_ids = lp_ids_from_courses
-                                print(f"[DASHBOARD] Using learning paths from courses: {selected_lp_ids}")
-                else:
-                    print(f"[DASHBOARD] User has no courses in student_progress")
-                    
+                    selected_lp_ids = [lp.get('learning_path_id') for lp in lp_docs if lp.get('learning_path_id')]
+                    print(f"[DASHBOARD] Derived learning path IDs from courses: {selected_lp_ids}")
             except Exception as e:
                 print(f"[DASHBOARD] Error finding LPs from courses: {e}")
                 import traceback
                 traceback.print_exc()
-            
-            # FALLBACK EXTRA: Jika masih kosong, ambil SEMUA learning paths yang ada di database
-            # Hanya jika benar-benar tidak ada data sama sekali
-            if (not selected_lp_ids or len(selected_lp_ids) == 0) and len(all_unique_course_names) == 0:
-                print(f"[DASHBOARD] FALLBACK EXTRA: No courses and no LPs, getting ALL learning paths from database")
-                try:
-                    lp_coll = db.get_collection('Learning_Path')
-                    all_lp_docs = list(lp_coll.find(
-                        {},
-                        {'_id': 0, 'learning_path_id': 1, 'learning_path_name': 1}
-                    ))
-                    
-                    selected_lp_ids = [lp.get('learning_path_id') for lp in all_lp_docs if lp.get('learning_path_id')]
-                    print(f"[DASHBOARD] Using ALL learning paths from database: {selected_lp_ids}")
-                    print(f"[DASHBOARD] Total learning paths: {len(selected_lp_ids)}")
-                except Exception as e:
-                    print(f"[DASHBOARD] Error getting all learning paths: {e}")
-                    import traceback
-                    traceback.print_exc()
-        
-        print(f"[DASHBOARD] ========================================")
-        print(f"[DASHBOARD] CALCULATING FROM SELECTED LEARNING PATHS")
-        print(f"[DASHBOARD] Selected LP IDs: {selected_lp_ids}")
-        print(f"[DASHBOARD] ========================================")
         
         if selected_lp_ids and len(selected_lp_ids) > 0 and db is not None:
             try:
-                # Step 1: Ambil learning path names
+                # Step 1: Ambil learning path names dari IDs
                 lp_coll = db.get_collection('Learning_Path')
-                print(f"[DASHBOARD] Querying Learning_Path collection with IDs: {selected_lp_ids}")
-                
                 learning_paths = list(lp_coll.find(
                     {'learning_path_id': {'$in': selected_lp_ids}},
                     {'_id': 0, 'learning_path_id': 1, 'learning_path_name': 1}
                 ))
                 
-                print(f"[DASHBOARD] Found {len(learning_paths)} learning paths")
+                print(f"[DASHBOARD] ========================================")
+                print(f"[DASHBOARD] QUERYING USER'S SELECTED LEARNING PATHS")
+                print(f"[DASHBOARD] Query: learning_path_id in {selected_lp_ids}")
+                print(f"[DASHBOARD] Found {len(learning_paths)} learning paths in database")
                 for lp in learning_paths:
                     print(f"[DASHBOARD]   LP ID {lp.get('learning_path_id')}: {lp.get('learning_path_name')}")
                 
                 lp_names = [lp.get('learning_path_name') for lp in learning_paths if lp.get('learning_path_name')]
                 print(f"[DASHBOARD] Learning path names to query: {lp_names}")
+                print(f"[DASHBOARD] ========================================")
                 
                 if lp_names:
                     # Step 2: Ambil semua courses dari learning paths ini
                     lp_course_coll = db.get_collection('LP+Course')
-                    print(f"[DASHBOARD] Querying LP+Course collection with learning path names: {lp_names}")
+                    print(f"[DASHBOARD] ========================================")
+                    print(f"[DASHBOARD] QUERYING LP+Course COLLECTION")
+                    print(f"[DASHBOARD] Query: learning_path_name in {lp_names}")
                     
+                    # Coba exact match dulu
                     all_courses = list(lp_course_coll.find(
                         {'learning_path_name': {'$in': lp_names}},
                         {'_id': 0, 'course_name': 1, 'learning_path_name': 1}
                     ))
                     
-                    print(f"[DASHBOARD] Found {len(all_courses)} total course records")
+                    print(f"[DASHBOARD] Found {len(all_courses)} total course records from LP+Course (exact match)")
                     
-                    # Step 3: Group by learning path dan hitung unique courses per LP
+                    # Jika tidak ada hasil, coba case-insensitive
+                    if len(all_courses) == 0:
+                        print(f"[DASHBOARD] No results with exact match, trying case-insensitive...")
+                        # Build $or query for case-insensitive search
+                        or_conditions = [{'learning_path_name': {'$regex': f'^{lp_name}$', '$options': 'i'}} for lp_name in lp_names]
+                        all_courses = list(lp_course_coll.find(
+                            {'$or': or_conditions},
+                            {'_id': 0, 'course_name': 1, 'learning_path_name': 1}
+                        ))
+                        print(f"[DASHBOARD] Found {len(all_courses)} total course records from LP+Course (case-insensitive)")
+                    
+                    # Jika masih tidak ada, coba partial match (contains)
+                    if len(all_courses) == 0:
+                        print(f"[DASHBOARD] No results with case-insensitive exact match, trying partial match...")
+                        or_conditions = [{'learning_path_name': {'$regex': lp_name, '$options': 'i'}} for lp_name in lp_names]
+                        all_courses = list(lp_course_coll.find(
+                            {'$or': or_conditions},
+                            {'_id': 0, 'course_name': 1, 'learning_path_name': 1}
+                        ))
+                        print(f"[DASHBOARD] Found {len(all_courses)} total course records from LP+Course (partial match)")
+                    
+                    print(f"[DASHBOARD] ========================================")
+                    
+                    # Step 3: Hitung unique courses (bisa ada duplikasi jika course ada di multiple LPs)
+                    unique_courses = set()
                     courses_by_lp = {}
+                    courses_without_name = 0
                     for course in all_courses:
                         lp_name = course.get('learning_path_name')
                         course_name = course.get('course_name')
                         if lp_name and course_name:
-                            if lp_name not in courses_by_lp:
-                                courses_by_lp[lp_name] = set()
-                            courses_by_lp[lp_name].add(course_name)
+                            # Normalize course name
+                            course_name = str(course_name).strip()
+                            if course_name:
+                                unique_courses.add(course_name)
+                                if lp_name not in courses_by_lp:
+                                    courses_by_lp[lp_name] = set()
+                                courses_by_lp[lp_name].add(course_name)
+                            else:
+                                courses_without_name += 1
+                        else:
+                            courses_without_name += 1
                     
-                    # Step 4: Hitung total (jumlahkan per learning path)
-                    total_by_lp = sum(len(course_set) for course_set in courses_by_lp.values())
-                    total_from_lp = total_by_lp
+                    if courses_without_name > 0:
+                        print(f"[DASHBOARD] WARNING: {courses_without_name} course records without valid course_name or learning_path_name")
+                    
+                    # Step 4: Total = jumlah unique courses dari semua learning paths yang dipilih user
+                    total_courses = len(unique_courses)
                     
                     print(f"[DASHBOARD] ========================================")
                     print(f"[DASHBOARD] BREAKDOWN BY LEARNING PATH:")
-                    for lp_name, course_set in courses_by_lp.items():
-                        print(f"[DASHBOARD]   {lp_name}: {len(course_set)} courses")
-                        print(f"[DASHBOARD]     Courses: {sorted(list(course_set))}")
-                    print(f"[DASHBOARD] ========================================")
-                    print(f"[DASHBOARD] TOTAL COURSES FROM LEARNING PATHS: {total_from_lp}")
-                    print(f"[DASHBOARD] ========================================")
-                    
-                    # GUNAKAN MAX antara learning paths dan student_progress
-                    # Untuk memastikan kita tidak melewatkan courses
-                    # Tapi prioritaskan learning paths karena itu yang user PILIH
-                    if total_from_lp > 0:
-                        total_courses = total_from_lp
-                        print(f"[DASHBOARD] Using learning paths count: {total_courses}")
-                        
-                        # Validasi: Bandingkan dengan student_progress
-                        if total_from_progress > total_courses:
-                            print(f"[DASHBOARD] WARNING: student_progress has MORE courses ({total_from_progress}) than learning paths ({total_courses})")
-                            print(f"[DASHBOARD] This might indicate user has courses not in selected learning paths")
-                            print(f"[DASHBOARD] Using MAX: {max(total_courses, total_from_progress)}")
-                            total_courses = max(total_courses, total_from_progress)
+                    total_courses_by_lp = 0
+                    for lp_name, course_set in sorted(courses_by_lp.items()):
+                        course_count = len(course_set)
+                        total_courses_by_lp += course_count
+                        print(f"[DASHBOARD]   {lp_name}: {course_count} courses")
+                        if course_count <= 10:  # Only print course names if <= 10 courses
+                            print(f"[DASHBOARD]     Courses: {sorted(list(course_set))}")
                         else:
-                            print(f"[DASHBOARD] Comparison:")
-                            print(f"[DASHBOARD]   From learning paths (USED): {total_courses}")
-                            print(f"[DASHBOARD]   From student_progress: {total_from_progress}")
-                            if total_from_progress < total_courses:
-                                print(f"[DASHBOARD]   Note: student_progress has fewer courses (user may not have started all courses yet)")
+                            print(f"[DASHBOARD]     (Too many courses to list, showing first 5)")
+                            print(f"[DASHBOARD]     Sample: {sorted(list(course_set))[:5]}...")
+                    print(f"[DASHBOARD] ========================================")
+                    print(f"[DASHBOARD] TOTAL COURSES BY LP (before deduplication): {total_courses_by_lp}")
+                    print(f"[DASHBOARD] TOTAL UNIQUE COURSES FROM USER'S LEARNING PATHS: {total_courses}")
+                    print(f"[DASHBOARD] Number of selected learning paths: {len(lp_names)}")
+                    print(f"[DASHBOARD] Average courses per LP: {total_courses / len(lp_names) if len(lp_names) > 0 else 0:.2f}")
+                    if total_courses <= 50:  # Only print all course names if <= 50
+                        print(f"[DASHBOARD] All unique course names ({total_courses}):")
+                        for idx, course_name in enumerate(sorted(list(unique_courses)), 1):
+                            print(f"[DASHBOARD]   {idx}. {course_name}")
                     else:
-                        print(f"[DASHBOARD] WARNING: total_from_lp is 0, using student_progress")
-                        total_courses = total_from_progress
+                        print(f"[DASHBOARD] (Too many courses to list, showing first 20)")
+                        for idx, course_name in enumerate(sorted(list(unique_courses))[:20], 1):
+                            print(f"[DASHBOARD]   {idx}. {course_name}")
+                        print(f"[DASHBOARD]   ... and {total_courses - 20} more courses")
+                    print(f"[DASHBOARD] ========================================")
                     
-                    print(f"[DASHBOARD] ========================================")
-                    print(f"[DASHBOARD] FINAL TOTAL COURSES: {total_courses}")
-                    print(f"[DASHBOARD] ========================================")
+                    # VALIDASI: Pastikan total_courses > 0 jika ada learning paths
+                    if total_courses == 0:
+                        print(f"[DASHBOARD] ERROR: total_courses is 0 but we have {len(lp_names)} learning paths!")
+                        print(f"[DASHBOARD] This might indicate:")
+                        print(f"[DASHBOARD]   1. Learning path names don't match in LP+Course collection")
+                        print(f"[DASHBOARD]   2. No courses found in LP+Course for these learning paths")
+                        print(f"[DASHBOARD]   3. Case sensitivity issue")
                 else:
                     print(f"[DASHBOARD] WARNING: No learning path names found!")
+                    print(f"[DASHBOARD] This means selected_lp_ids don't match any learning paths in database!")
             except Exception as e:
                 print(f"[DASHBOARD] ERROR calculating from learning paths: {e}")
                 import traceback
                 traceback.print_exc()
-        else:
-            print(f"[DASHBOARD] WARNING: No selected learning path IDs or database not available")
-            print(f"[DASHBOARD]   selected_lp_ids: {selected_lp_ids}")
-            print(f"[DASHBOARD]   db is None: {db is None}")
+        
+        # FALLBACK: Jika total_courses masih 0, gunakan courses dari student_progress
+        if total_courses == 0:
+            print(f"[DASHBOARD] ========================================")
+            print(f"[DASHBOARD] FALLBACK: Using courses from student_progress")
+            total_courses = len(all_unique_course_names)
+            print(f"[DASHBOARD] Total courses from student_progress: {total_courses}")
+            print(f"[DASHBOARD] All course names from progress ({len(all_unique_course_names)}):")
+            for idx, course_name in enumerate(sorted(list(all_unique_course_names)), 1):
+                print(f"[DASHBOARD]   {idx}. {course_name}")
+            print(f"[DASHBOARD] ========================================")
         
         # Filter hanya unique courses (jika ada duplikasi karena exam attempts)
         unique_courses = {}
@@ -460,61 +513,77 @@ def get_dashboard_stats():
             except Exception as e:
                 print(f"[WARNING] Failed to update from material_progress: {e}")
 
-        # FALLBACK: Jika total_courses masih 0 (tidak ada selected learning paths atau error), 
-        # gunakan student_progress sebagai fallback
+        # TOTAL KURSUS sudah dihitung dari learning paths yang dipilih user
+        # Jika masih 0, gunakan fallback dari student_progress
         print(f"[DASHBOARD] ========================================")
-        print(f"[DASHBOARD] CHECKING FINAL total_courses BEFORE FALLBACK")
-        print(f"[DASHBOARD]   total_courses: {total_courses}")
-        print(f"[DASHBOARD]   total_from_lp: {total_from_lp}")
-        print(f"[DASHBOARD]   total_from_progress: {total_from_progress}")
+        print(f"[DASHBOARD] FINAL TOTAL COURSES: {total_courses}")
+        if total_courses > 0:
+            print(f"[DASHBOARD] (calculated from user's selected learning paths)")
+        else:
+            print(f"[DASHBOARD] (fallback: calculated from courses in student_progress)")
         print(f"[DASHBOARD] ========================================")
         
-        if total_courses == 0:
+        # VALIDASI: Pastikan total_courses tidak 0 jika ada selected_lp_ids
+        if total_courses == 0 and selected_lp_ids and len(selected_lp_ids) > 0:
             print(f"[DASHBOARD] ========================================")
-            print(f"[DASHBOARD] FALLBACK: total_courses is 0")
-            print(f"[DASHBOARD]   selected_lp_ids: {selected_lp_ids}")
-            print(f"[DASHBOARD]   total_from_lp: {total_from_lp}")
-            print(f"[DASHBOARD]   total_from_progress: {total_from_progress}")
+            print(f"[DASHBOARD] WARNING: total_courses is 0 but user has selected learning paths!")
+            print(f"[DASHBOARD] Selected LP IDs: {selected_lp_ids}")
+            print(f"[DASHBOARD] This might indicate a problem with the query or data.")
+            print(f"[DASHBOARD] Attempting to fix by querying courses directly from LP IDs...")
             
-            # Gunakan yang lebih besar antara learning paths dan student_progress
-            if total_from_lp > 0:
-                total_courses = total_from_lp
-                print(f"[DASHBOARD] Using learning paths count: {total_courses}")
-            elif total_from_progress > 0:
-                total_courses = total_from_progress
-                print(f"[DASHBOARD] Using student_progress count: {total_courses}")
+            # Try to get courses directly from learning path IDs using course_id
+            if db is not None:
+                try:
+                    lp_course_coll = db.get_collection('LP+Course')
+                    # Try to find courses by learning_path_id if that field exists
+                    # Or try to get all courses and filter by learning_path_name
+                    lp_coll = db.get_collection('Learning_Path')
+                    learning_paths = list(lp_coll.find(
+                        {'learning_path_id': {'$in': selected_lp_ids}},
+                        {'_id': 0, 'learning_path_id': 1, 'learning_path_name': 1}
+                    ))
+                    lp_names = [lp.get('learning_path_name') for lp in learning_paths if lp.get('learning_path_name')]
+                    
+                    if lp_names:
+                        # Try exact match
+                        direct_courses = list(lp_course_coll.find(
+                            {'learning_path_name': {'$in': lp_names}},
+                            {'_id': 0, 'course_name': 1}
+                        ))
+                        
+                        if len(direct_courses) == 0:
+                            # Try case-insensitive
+                            or_conditions = [{'learning_path_name': {'$regex': f'^{lp_name}$', '$options': 'i'}} for lp_name in lp_names]
+                            direct_courses = list(lp_course_coll.find(
+                                {'$or': or_conditions},
+                                {'_id': 0, 'course_name': 1}
+                            ))
+                        
+                        unique_direct = set()
+                        for course in direct_courses:
+                            course_name = course.get('course_name')
+                            if course_name:
+                                unique_direct.add(str(course_name).strip())
+                        
+                        if len(unique_direct) > 0:
+                            total_courses = len(unique_direct)
+                            print(f"[DASHBOARD] Fixed! Found {total_courses} courses using direct query")
+                        else:
+                            print(f"[DASHBOARD] Direct query also returned 0 courses")
+                            total_courses = len(all_unique_course_names)
+                            print(f"[DASHBOARD] Using fallback: courses from student_progress = {total_courses}")
+                    else:
+                        total_courses = len(all_unique_course_names)
+                        print(f"[DASHBOARD] No learning path names found, using fallback: {total_courses}")
+                except Exception as e:
+                    print(f"[DASHBOARD] Error in fix attempt: {e}")
+                    total_courses = len(all_unique_course_names)
+                    print(f"[DASHBOARD] Using fallback: courses from student_progress = {total_courses}")
             else:
-                # Last resort: coba ambil dari semua learning paths di database
-                if db is not None:
-                    try:
-                        lp_course_coll = db.get_collection('LP+Course')
-                        if lp_course_coll is not None:
-                            all_courses_in_db = lp_course_coll.distinct('course_name')
-                            total_courses = len(all_courses_in_db)
-                            print(f"[DASHBOARD] Last resort: Using all courses from database: {total_courses}")
-                    except Exception as e:
-                        print(f"[DASHBOARD] Error in last resort fallback: {e}")
+                total_courses = len(all_unique_course_names)
+                print(f"[DASHBOARD] DB not available, using fallback: {total_courses}")
             
-            print(f"[DASHBOARD] FINAL TOTAL COURSES (from fallback): {total_courses}")
             print(f"[DASHBOARD] ========================================")
-        
-        # FINAL VALIDATION: Pastikan total_courses tidak 0 jika ada data
-        print(f"[DASHBOARD] ========================================")
-        print(f"[DASHBOARD] FINAL VALIDATION BEFORE RETURNING")
-        print(f"[DASHBOARD]   total_courses: {total_courses}")
-        print(f"[DASHBOARD]   total_from_lp: {total_from_lp}")
-        print(f"[DASHBOARD]   total_from_progress: {total_from_progress}")
-        
-        if total_courses == 0:
-            if total_from_lp > 0:
-                print(f"[DASHBOARD] FINAL FIX: Using total_from_lp: {total_from_lp}")
-                total_courses = total_from_lp
-            elif total_from_progress > 0:
-                print(f"[DASHBOARD] FINAL FIX: Using total_from_progress: {total_from_progress}")
-                total_courses = total_from_progress
-        
-        print(f"[DASHBOARD] FINAL total_courses: {total_courses}")
-        print(f"[DASHBOARD] ========================================")
         
         # Kalau belum ada progress sama sekali dan belum ada learning path
         if total_courses == 0 and len(progress_list) == 0:
@@ -599,29 +668,25 @@ def get_dashboard_stats():
         print(f"[DASHBOARD]   in_progress_courses: {in_progress_courses}")
         print(f"[DASHBOARD] ========================================")
 
+        # PASTIKAN semua nilai valid (tidak None)
         cards = {
-            'total': total_courses,
-            'completed': completed_courses,
-            'in_progress': in_progress_courses
+            'total': int(total_courses) if total_courses else 0,
+            'completed': int(completed_courses) if completed_courses else 0,
+            'in_progress': int(in_progress_courses) if in_progress_courses else 0
         }
         
         print(f"[DASHBOARD] Cards response: {cards}")
 
         # 3. DOUGHNUT STATISTICS
-        # Belum Dimulai = yang belum ada progress sama sekali
-        # Exclude yang sudah lulus ujian
-        not_started_courses = sum(
-            1 for p in progress_list
-            if not (p.get('exam_passed') is True and p.get('exam_completed') is True) and
-               (p.get('completed_tutorials', 0) == 0 and 
-                p.get('active_tutorials', 0) == 0)
-        )
+        # Belum Dimulai = total_courses - completed_courses - in_progress_courses
+        # Ini memastikan semua courses dari learning paths yang dipilih user dihitung
+        not_started_courses = max(0, total_courses - completed_courses - in_progress_courses)
 
-        doughnut = {
-            'completed': completed_courses,
-            'in_progress': in_progress_courses,
-            'not_started': not_started_courses
-        }
+        print(f"[DASHBOARD] Doughnut calculation:")
+        print(f"[DASHBOARD]   total_courses: {total_courses}")
+        print(f"[DASHBOARD]   completed_courses: {completed_courses}")
+        print(f"[DASHBOARD]   in_progress_courses: {in_progress_courses}")
+        print(f"[DASHBOARD]   not_started_courses: {not_started_courses} (calculated as total - completed - in_progress)")
 
         # 4. TOP COURSES – pakai persentase progress (0–100)
         # Logika:
@@ -844,31 +909,42 @@ def get_dashboard_stats():
         print(f"[DASHBOARD] ========================================")
         print(f"[DASHBOARD] FINAL CHECK BEFORE RETURNING RESPONSE")
         print(f"[DASHBOARD]   total_courses: {total_courses}")
-        print(f"[DASHBOARD]   total_from_lp: {total_from_lp}")
-        print(f"[DASHBOARD]   total_from_progress: {total_from_progress}")
-        
-        # PASTIKAN total_courses tidak 0 jika ada data
-        if total_courses == 0:
-            if total_from_lp > 0:
-                print(f"[DASHBOARD] LAST CHANCE FIX: Using total_from_lp: {total_from_lp}")
-                total_courses = total_from_lp
-                cards['total'] = total_courses
-            elif total_from_progress > 0:
-                print(f"[DASHBOARD] LAST CHANCE FIX: Using total_from_progress: {total_from_progress}")
-                total_courses = total_from_progress
-                cards['total'] = total_courses
-        
+        print(f"[DASHBOARD]   completed_courses: {completed_courses}")
+        print(f"[DASHBOARD]   in_progress_courses: {in_progress_courses}")
+        print(f"[DASHBOARD]   not_started_courses: {not_started_courses}")
         print(f"[DASHBOARD] FINAL total_courses in response: {total_courses}")
         print(f"[DASHBOARD] ========================================")
+        
+        # PASTIKAN doughnut juga menggunakan nilai yang benar
+        doughnut = {
+            'completed': int(completed_courses) if completed_courses else 0,
+            'in_progress': int(in_progress_courses) if in_progress_courses else 0,
+            'not_started': int(not_started_courses) if not_started_courses else 0
+        }
         
         response = {
             'cards': cards,
             'doughnut': doughnut,
-            'top_courses': top_courses_data
+            'top_courses': top_courses_data if top_courses_data else []
         }
 
-        print(f"[DASHBOARD] FINAL STATS - Total: {total_courses}, Completed: {completed_courses}, In Progress: {in_progress_courses}")
+        print(f"[DASHBOARD] ========================================")
+        print(f"[DASHBOARD] FINAL STATS BEFORE RETURNING:")
+        print(f"[DASHBOARD]   total_courses: {total_courses}")
+        print(f"[DASHBOARD]   completed_courses: {completed_courses}")
+        print(f"[DASHBOARD]   in_progress_courses: {in_progress_courses}")
+        print(f"[DASHBOARD]   not_started_courses: {not_started_courses}")
         print(f"[DASHBOARD] Response cards: {response['cards']}")
+        print(f"[DASHBOARD] Response doughnut: {response['doughnut']}")
+        print(f"[DASHBOARD] Response top_courses count: {len(response['top_courses'])}")
+        print(f"[DASHBOARD] Response structure:")
+        print(f"[DASHBOARD]   - cards.total: {response['cards'].get('total')}")
+        print(f"[DASHBOARD]   - cards.completed: {response['cards'].get('completed')}")
+        print(f"[DASHBOARD]   - cards.in_progress: {response['cards'].get('in_progress')}")
+        print(f"[DASHBOARD]   - doughnut.completed: {response['doughnut'].get('completed')}")
+        print(f"[DASHBOARD]   - doughnut.in_progress: {response['doughnut'].get('in_progress')}")
+        print(f"[DASHBOARD]   - doughnut.not_started: {response['doughnut'].get('not_started')}")
+        print(f"[DASHBOARD] ========================================")
 
         return jsonify({'success': True, 'data': response}), 200
 
@@ -877,6 +953,125 @@ def get_dashboard_stats():
         error_trace = traceback.format_exc()
         print(f"[ERROR] Dashboard stats error: {e}")
         print(f"[ERROR] Traceback: {error_trace}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@dashboard_bp.route('/dashboard/fix-total-courses', methods=['POST'])
+def fix_total_courses():
+    """Fix selected_learning_path_ids for a user and recalculate total courses"""
+    try:
+        data = request.get_json(silent=True) or {}
+        email = (data.get('email') or '').strip().lower()
+        
+        if not email:
+            return jsonify({'success': False, 'error': 'Email is required'}), 400
+        
+        # Get user
+        user = collections['users'].find_one({'email': email}, {'_id': 0})
+        if not user:
+            return jsonify({'success': False, 'error': 'User not found'}), 404
+        
+        # Get map_interest_choices
+        preferences = user.get('preferences', {})
+        map_interest_choices = preferences.get('map_interest_choices', [])
+        
+        # Extract learning path IDs (same logic as dashboard stats)
+        all_lp_ids = []
+        if map_interest_choices and db is not None:
+            lp_coll = db.get_collection('Learning_Path')
+            category_to_lp_ids = {
+                'Mobile Development': [2, 12, 10],
+                'Artificial Intelligence': [1, 8, 11],
+                'Cloud Computing': [6, 9],
+                'Web Development': [3, 4, 7, 13]
+            }
+            
+            for choice in map_interest_choices:
+                choice_id = choice.get('id', '')
+                choice_name = choice.get('name', '').strip()
+                choice_category = choice.get('category', '').strip()
+                
+                # Priority 1: ID
+                if choice_id:
+                    try:
+                        lp_id_int = int(choice_id)
+                        lp_doc = lp_coll.find_one({'learning_path_id': lp_id_int}, {'_id': 0, 'learning_path_id': 1})
+                        if lp_doc:
+                            all_lp_ids.append(lp_id_int)
+                            continue
+                        else:
+                            all_lp_ids.append(lp_id_int)
+                            continue
+                    except:
+                        pass
+                
+                # Priority 2: Category
+                if choice_category and choice_category in category_to_lp_ids:
+                    all_lp_ids.extend(category_to_lp_ids[choice_category])
+                    continue
+                
+                # Priority 3: Name
+                if choice_name:
+                    lp_docs = list(lp_coll.find(
+                        {'learning_path_name': {'$regex': f'^{choice_name}$', '$options': 'i'}},
+                        {'_id': 0, 'learning_path_id': 1}
+                    ))
+                    for lp_doc in lp_docs:
+                        lp_id = lp_doc.get('learning_path_id')
+                        if lp_id:
+                            all_lp_ids.append(lp_id)
+        
+        # Remove duplicates
+        all_lp_ids = list(set(all_lp_ids))
+        
+        # Update user
+        collections['users'].update_one(
+            {'email': email},
+            {'$set': {'preferences.selected_learning_path_ids': all_lp_ids}}
+        )
+        
+        # Calculate total courses
+        total_courses = 0
+        if all_lp_ids and db is not None:
+            lp_coll = db.get_collection('Learning_Path')
+            learning_paths = list(lp_coll.find(
+                {'learning_path_id': {'$in': all_lp_ids}},
+                {'_id': 0, 'learning_path_id': 1, 'learning_path_name': 1}
+            ))
+            lp_names = [lp.get('learning_path_name') for lp in learning_paths if lp.get('learning_path_name')]
+            
+            if lp_names:
+                lp_course_coll = db.get_collection('LP+Course')
+                all_courses = list(lp_course_coll.find(
+                    {'learning_path_name': {'$in': lp_names}},
+                    {'_id': 0, 'course_name': 1}
+                ))
+                
+                if len(all_courses) == 0:
+                    or_conditions = [{'learning_path_name': {'$regex': f'^{lp_name}$', '$options': 'i'}} for lp_name in lp_names]
+                    all_courses = list(lp_course_coll.find(
+                        {'$or': or_conditions},
+                        {'_id': 0, 'course_name': 1}
+                    ))
+                
+                unique_courses = set()
+                for course in all_courses:
+                    course_name = course.get('course_name')
+                    if course_name:
+                        unique_courses.add(str(course_name).strip())
+                
+                total_courses = len(unique_courses)
+        
+        return jsonify({
+            'success': True,
+            'message': 'Fixed selected_learning_path_ids and calculated total courses',
+            'data': {
+                'selected_learning_path_ids': all_lp_ids,
+                'total_courses': total_courses
+            }
+        }), 200
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
         return jsonify({'success': False, 'error': str(e)}), 500
 
 @dashboard_bp.route('/dashboard/debug', methods=['GET'])

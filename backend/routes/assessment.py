@@ -328,10 +328,42 @@ def submit_assessment():
             'assessed_at': datetime.utcnow().isoformat()
         }
         
+        # Update selected_learning_path_ids: collect all learning path IDs from skill_assessment
+        # This ensures user preferences are updated with all learning paths they've assessed
+        all_assessed_lp_ids = [int(lp_id) for lp_id in skill_assessment.keys() if lp_id.isdigit()]
+        all_assessed_lp_ids.append(int(learning_path_id))  # Add current one
+        all_assessed_lp_ids = list(set(all_assessed_lp_ids))  # Remove duplicates
+        
+        # Get current user preferences
+        current_preferences = user.get('preferences', {})
+        current_selected_lp_ids = current_preferences.get('selected_learning_path_ids', [])
+        
+        # Merge with existing selected_learning_path_ids
+        if not isinstance(current_selected_lp_ids, list):
+            current_selected_lp_ids = []
+        
+        # Combine and remove duplicates
+        updated_selected_lp_ids = list(set(current_selected_lp_ids + all_assessed_lp_ids))
+        
+        # Update user with skill_assessment and selected_learning_path_ids
+        update_doc = {
+            'skill_assessment': skill_assessment,
+            'preferences.selected_learning_path_ids': updated_selected_lp_ids
+        }
+        
+        # Preserve existing preferences if they exist
+        if current_preferences:
+            # Only update selected_learning_path_ids, keep other preferences
+            for key, value in current_preferences.items():
+                if key != 'selected_learning_path_ids':
+                    update_doc[f'preferences.{key}'] = value
+        
         users_coll.update_one(
             {'email': email},
-            {'$set': {'skill_assessment': skill_assessment}}
+            {'$set': update_doc}
         )
+        
+        print(f"[ASSESSMENT] Updated selected_learning_path_ids: {updated_selected_lp_ids}")
 
         # Prepare response data first (before potentially slow auto-update)
         response_data = {
