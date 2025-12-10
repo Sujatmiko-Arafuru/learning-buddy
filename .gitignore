@@ -118,3 +118,5 @@ site/
 
 # Chroma DB
 backend/backend
+backend/chroma_db/
+**/chroma_db/
