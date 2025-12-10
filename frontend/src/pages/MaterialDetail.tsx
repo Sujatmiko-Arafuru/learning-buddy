@@ -339,11 +339,20 @@ const MaterialDetail: React.FC = () => {
 
                     setIsCompleted(true);
 
-                    // Navigate to next page
+                    // Refresh material status di parent (CourseDetail) jika ada
+                    // Trigger reload dengan menambahkan timestamp ke state
                     const nextUrl = state?.fromCourse
                       ? `/course/${courseName}`
                       : "/dashboard";
-                    navigate(nextUrl);
+                    
+                    // Navigate dengan state untuk trigger refresh
+                    navigate(nextUrl, { 
+                      state: { 
+                        fromMaterial: true,
+                        refreshMaterialStatus: true,
+                        timestamp: Date.now()
+                      } 
+                    });
                   } catch (err: any) {
                     console.error("Error completing material:", err);
                     const errorMessage = err.response?.data?.error || err.message || "Gagal menyelesaikan materi. Silakan coba lagi.";

@@ -74,6 +74,11 @@ const CourseDetail: React.FC = () => {
     }
 
     const loadCourseData = async () => {
+      // Check if we need to refresh (coming from MaterialDetail after completion)
+      const state = location.state as { refreshMaterialStatus?: boolean; timestamp?: number };
+      if (state?.refreshMaterialStatus) {
+        console.log("[CourseDetail] Refreshing material status after completion");
+      }
       try {
         setLoading(true);
         setError("");
@@ -153,7 +158,15 @@ const CourseDetail: React.FC = () => {
               email,
               decodedName
             );
+            console.log("[CourseDetail] Completion check:", completionCheck);
             setAllMaterialsCompleted(completionCheck.all_completed || false);
+            
+            // Log untuk debugging
+            if (completionCheck.all_completed) {
+              console.log("[CourseDetail] ✓ All materials completed! Exam should be enabled.");
+            } else {
+              console.log(`[CourseDetail] ⚠ Not all materials completed. Completed: ${completionCheck.completed_materials}/${completionCheck.total_materials}, Remaining: ${completionCheck.remaining_materials}`);
+            }
           } catch (err) {
             console.error("Error loading material status:", err);
           }
@@ -171,7 +184,34 @@ const CourseDetail: React.FC = () => {
     };
 
     loadCourseData();
-  }, [courseName, navigate, email]);
+  }, [courseName, navigate, email, location.state]);
+  
+  // Refresh material status when coming back from material detail
+  useEffect(() => {
+    const state = location.state as { refreshMaterialStatus?: boolean; timestamp?: number };
+    if (state?.refreshMaterialStatus && courseName && email) {
+      const refreshStatus = async () => {
+        try {
+          const decodedName = decodeURIComponent(courseName);
+          const status = await resourcesApi.getMaterialStatus(email, decodedName);
+          setMaterialStatus(status);
+          
+          const completionCheck = await resourcesApi.checkAllMaterialsCompleted(
+            email,
+            decodedName
+          );
+          console.log("[CourseDetail] Refreshed completion check:", completionCheck);
+          setAllMaterialsCompleted(completionCheck.all_completed || false);
+        } catch (err) {
+          console.error("Error refreshing material status:", err);
+        }
+      };
+      
+      // Delay sedikit untuk memastikan backend sudah update
+      const timer = setTimeout(refreshStatus, 500);
+      return () => clearTimeout(timer);
+    }
+  }, [location.state, courseName, email]);
 
   const handleMaterialClick = async (
     title: string | undefined,

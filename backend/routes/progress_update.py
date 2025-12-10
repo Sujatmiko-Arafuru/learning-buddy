@@ -76,7 +76,12 @@ def mark_material_complete():
         course_name = data['course_name']
         tutorial_title = data['tutorial_title']
         
-        print(f"[MATERIAL] Marking material as complete: {email} - {course_name} - {tutorial_title}")
+        # Decode jika perlu (untuk konsistensi)
+        import urllib.parse
+        decoded_course_name = urllib.parse.unquote(course_name) if course_name else ""
+        decoded_tutorial_title = urllib.parse.unquote(tutorial_title) if tutorial_title else ""
+        
+        print(f"[MATERIAL] Marking material as complete: {email} - {decoded_course_name} - {decoded_tutorial_title}")
         
         # Get or create material progress document
         if db is None:
@@ -90,10 +95,11 @@ def mark_material_complete():
             return jsonify({'success': False, 'error': f'Database error: {str(e)}'}), 500
         
         # Check if material already completed
+        # Gunakan decoded values untuk konsistensi
         query = {
             'email': email,
-            'course_name': course_name,
-            'tutorial_title': tutorial_title
+            'course_name': decoded_course_name,
+            'tutorial_title': decoded_tutorial_title
         }
         
         try:
@@ -122,8 +128,8 @@ def mark_material_complete():
                 # Create new record
                 material_progress_coll.insert_one({
                     'email': email,
-                    'course_name': course_name,
-                    'tutorial_title': tutorial_title,
+                    'course_name': decoded_course_name,
+                    'tutorial_title': decoded_tutorial_title,
                     'is_completed': True,
                     'completed_at': current_time,
                     'last_updated': current_time,
@@ -144,7 +150,7 @@ def mark_material_complete():
                     # Count total non-exam tutorials in this course
                     # Exclude "Ujian Akhir" from count
                     total_materials = lp_course_coll.count_documents({
-                        'course_name': course_name,
+                        'course_name': decoded_course_name,
                         'tutorial_title': {'$ne': 'Ujian Akhir'}
                     })
             except Exception as e:
@@ -155,7 +161,7 @@ def mark_material_complete():
         try:
             completed_count = material_progress_coll.count_documents({
                 'email': email,
-                'course_name': course_name,
+                'course_name': decoded_course_name,
                 'is_completed': True
             })
             print(f"[MATERIAL] Completed count: {completed_count}/{total_materials}")
@@ -168,7 +174,7 @@ def mark_material_complete():
         if progress_coll is not None:
                 progress_query = {
                     'email': email,
-                    'course_name': course_name
+                    'course_name': decoded_course_name
                 }
                 
                 # Get current progress
@@ -176,7 +182,7 @@ def mark_material_complete():
                 
                 update_doc = {
                     'email': email,
-                    'course_name': course_name,
+                    'course_name': decoded_course_name,
                     'completed_tutorials': completed_count,
                     'active_tutorials': max(0, total_materials - completed_count)
                 }
@@ -297,37 +303,113 @@ def check_all_materials_completed():
                 }
             }), 200
         
+        # Decode course_name jika perlu
+        import urllib.parse
+        decoded_course_name = urllib.parse.unquote(course_name)
+        
+        print(f"[MATERIAL CHECK] Checking completion for: {email} - {decoded_course_name}")
+        print(f"[MATERIAL CHECK] Original course_name: {course_name}")
+        
         # Count total non-exam tutorials (exclude "Ujian Akhir")
-        total_materials = lp_course_coll.count_documents({
-            'course_name': course_name,
-            'tutorial_title': {'$ne': 'Ujian Akhir'}
-        })
+        # Gunakan distinct untuk mendapatkan unique tutorial titles
+        all_tutorials = []
+        try:
+            # Method 1: Gunakan distinct untuk mendapatkan unique tutorial titles
+            all_tutorials = lp_course_coll.distinct('tutorial_title', {
+                'course_name': decoded_course_name,
+                'tutorial_title': {'$ne': 'Ujian Akhir'}
+            })
+            total_materials = len(all_tutorials)
+            print(f"[MATERIAL CHECK] Total materials (distinct): {total_materials}")
+            print(f"[MATERIAL CHECK] All tutorial titles ({len(all_tutorials)}): {sorted(all_tutorials)}")
+        except Exception as e:
+            print(f"[ERROR] Failed to get distinct tutorials: {e}")
+            # Method 2: Fallback - ambil semua dan buat unique
+            try:
+                all_courses_data = list(lp_course_coll.find({
+                    'course_name': decoded_course_name,
+                    'tutorial_title': {'$ne': 'Ujian Akhir'}
+                }, {'_id': 0, 'tutorial_title': 1}))
+                all_tutorials = list(set([c.get('tutorial_title') for c in all_courses_data if c.get('tutorial_title')]))
+                total_materials = len(all_tutorials)
+                print(f"[MATERIAL CHECK] Total materials (manual distinct): {total_materials}")
+                print(f"[MATERIAL CHECK] All tutorial titles ({len(all_tutorials)}): {sorted(all_tutorials)}")
+            except Exception as e2:
+                print(f"[ERROR] Fallback also failed: {e2}")
+                total_materials = 0
         
-        # Count completed materials
-        if db is None:
-            return jsonify({
-                'success': True,
-                'data': {
-                    'all_completed': False,
-                    'total_materials': 0,
-                    'completed_materials': 0
-                }
-            }), 200
-        
+        # Count completed materials dari material_progress
+        # Coba dengan beberapa variasi course_name untuk memastikan match
         material_progress_coll = db['material_progress']
         completed_count = 0
+        completed_tutorial_titles = []
+        
         if material_progress_coll is not None:
             try:
-                completed_count = material_progress_coll.count_documents({
+                # Coba dengan decoded_course_name dulu
+                completed_materials = list(material_progress_coll.find({
                     'email': email,
-                    'course_name': course_name,
+                    'course_name': decoded_course_name,
                     'is_completed': True
-                })
+                }, {'_id': 0, 'tutorial_title': 1, 'course_name': 1}))
+                
+                # Jika tidak ada hasil, coba dengan course_name asli
+                if len(completed_materials) == 0:
+                    completed_materials = list(material_progress_coll.find({
+                        'email': email,
+                        'course_name': course_name,
+                        'is_completed': True
+                    }, {'_id': 0, 'tutorial_title': 1, 'course_name': 1}))
+                
+                completed_tutorial_titles = [m.get('tutorial_title') for m in completed_materials if m.get('tutorial_title')]
+                # Gunakan set untuk menghindari duplikasi
+                completed_tutorial_titles = list(set(completed_tutorial_titles))
+                completed_count = len(completed_tutorial_titles)
+                
+                print(f"[MATERIAL CHECK] Completed materials: {completed_count}")
+                print(f"[MATERIAL CHECK] Completed tutorial titles ({len(completed_tutorial_titles)}): {sorted(completed_tutorial_titles)}")
             except Exception as e:
-                print(f"[WARNING] Failed to count completed materials: {e}")
+                print(f"[ERROR] Failed to count completed materials: {e}")
+                import traceback
+                traceback.print_exc()
                 completed_count = 0
         
-        all_completed = completed_count >= total_materials and total_materials > 0
+        # Check if all materials are completed
+        # Pastikan semua tutorial titles yang ada di total juga ada di completed
+        if total_materials > 0 and len(all_tutorials) > 0:
+            # Normalize tutorial titles (strip whitespace, case insensitive comparison)
+            def normalize_title(title):
+                if not title:
+                    return ""
+                return str(title).strip()
+            
+            # Convert to normalized sets for comparison
+            all_tutorials_set = set(normalize_title(t) for t in all_tutorials if normalize_title(t))
+            completed_tutorials_set = set(normalize_title(t) for t in completed_tutorial_titles if normalize_title(t))
+            
+            missing_tutorials = all_tutorials_set - completed_tutorials_set
+            if missing_tutorials:
+                print(f"[MATERIAL CHECK] Missing tutorials ({len(missing_tutorials)}): {sorted(missing_tutorials)}")
+            else:
+                print(f"[MATERIAL CHECK] All tutorials completed! ✓")
+            
+            # All completed jika tidak ada yang missing DAN completed_count >= total_materials
+            all_completed = len(missing_tutorials) == 0 and completed_count >= total_materials
+            
+            print(f"[MATERIAL CHECK] Comparison:")
+            print(f"[MATERIAL CHECK]   Total unique tutorials: {len(all_tutorials_set)}")
+            print(f"[MATERIAL CHECK]   Completed unique tutorials: {len(completed_tutorials_set)}")
+            print(f"[MATERIAL CHECK]   Missing: {len(missing_tutorials)}")
+            print(f"[MATERIAL CHECK]   All completed: {all_completed}")
+        else:
+            all_completed = False
+            print(f"[MATERIAL CHECK] Cannot check: total_materials={total_materials}, all_tutorials={len(all_tutorials) if 'all_tutorials' in locals() else 0}")
+        
+        print(f"[MATERIAL CHECK] ========================================")
+        print(f"[MATERIAL CHECK] Total materials: {total_materials}")
+        print(f"[MATERIAL CHECK] Completed materials: {completed_count}")
+        print(f"[MATERIAL CHECK] All completed: {all_completed}")
+        print(f"[MATERIAL CHECK] ========================================")
         
         return jsonify({
             'success': True,
