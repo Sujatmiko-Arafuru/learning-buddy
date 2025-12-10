@@ -27,7 +27,9 @@ import {
   Legend,
   BarElement,
   CategoryScale,
-  LinearScale
+  LinearScale,
+  PointElement,
+  LineElement
 } from "chart.js";
 import { Bar } from "react-chartjs-2";
 
@@ -37,7 +39,9 @@ ChartJS.register(
   Legend,
   BarElement,
   CategoryScale,
-  LinearScale
+  LinearScale,
+  PointElement,
+  LineElement
 );
 
 const Dashboard: React.FC = () => {
@@ -100,7 +104,8 @@ const Dashboard: React.FC = () => {
         console.log('[DASHBOARD] User has progress but missing selected_learning_path_ids, attempting to fix...');
         try {
           // Try to fix learning paths
-          await fetch(`${process.env.REACT_APP_API_URL || 'http://localhost:5000'}/api/personalization/fix-learning-paths`, {
+          const apiUrl = (window as any).__API_URL__ || 'http://localhost:5000';
+          await fetch(`${apiUrl}/api/personalization/fix-learning-paths`, {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
@@ -206,20 +211,42 @@ const Dashboard: React.FC = () => {
       {/* CARD STATISTIK */}
       {stats?.cards && (
         <Row className="mb-4">
-          <Col md={6}>
+          <Col md={3}>
             <Card className="text-center shadow-sm" style={{ background: "#dcfce7" }}>
               <Card.Body>
-                <h3>{stats.cards.completed}</h3>
-                <p className="mb-0 text-muted">Selesai</p>
+                <h3 className="mb-1">{stats.cards.completed || 0}</h3>
+                <p className="mb-0 text-muted small">Selesai</p>
               </Card.Body>
             </Card>
           </Col>
 
-          <Col md={6}>
+          <Col md={3}>
             <Card className="text-center shadow-sm" style={{ background: "#fef3c7" }}>
               <Card.Body>
-                <h3>{stats.cards.in_progress}</h3>
-                <p className="mb-0 text-muted">Sedang Belajar</p>
+                <h3 className="mb-1">{stats.cards.in_progress || 0}</h3>
+                <p className="mb-0 text-muted small">Sedang Belajar</p>
+              </Card.Body>
+            </Card>
+          </Col>
+
+          <Col md={3}>
+            <Card className="text-center shadow-sm" style={{ background: "#e0e7ff" }}>
+              <Card.Body>
+                <h3 className="mb-1">
+                  {stats.cards.total > 0
+                    ? `${Math.round(((stats.cards.completed || 0) / stats.cards.total) * 100)}%`
+                    : "0%"}
+                </h3>
+                <p className="mb-0 text-muted small">Completion Rate</p>
+              </Card.Body>
+            </Card>
+          </Col>
+
+          <Col md={3}>
+            <Card className="text-center shadow-sm" style={{ background: "#fce7f3" }}>
+              <Card.Body>
+                <h3 className="mb-1">{learningPaths.length || 0}</h3>
+                <p className="mb-0 text-muted small">Learning Path</p>
               </Card.Body>
             </Card>
           </Col>
@@ -228,11 +255,55 @@ const Dashboard: React.FC = () => {
 
       {/* CHART SECTION */}
       <Row className="mb-4">
-        {/* BAR CHART */}
-        <Col md={12}>
+        {/* LEARNING PATH PROGRESS */}
+        <Col md={6}>
+          <Card className="p-3 shadow-sm">
+            <h5 className="text-center mb-3">Progress per Learning Path</h5>
+            <div style={{ height: "300px" }}>
+              {learningPaths.length > 0 ? (
+                <Bar
+                  data={{
+                    labels: learningPaths.map((lp) => lp.learning_path_name),
+                    datasets: [
+                      {
+                        label: "Jumlah Kursus",
+                        data: learningPaths.map((lp) => {
+                          const pathCourses = coursesByPath[lp.learning_path_id] || [];
+                          return pathCourses.length;
+                        }),
+                        backgroundColor: "#93c5fd",
+                      },
+                    ],
+                  }}
+                  options={{
+                    maintainAspectRatio: false,
+                    plugins: { 
+                      legend: { display: true, position: "bottom" },
+                      tooltip: {
+                        callbacks: {
+                          label: function(context: any) {
+                            return `${context.dataset.label}: ${context.parsed.y} kursus`;
+                          }
+                        }
+                      }
+                    },
+                    scales: {
+                      y: { beginAtZero: true }
+                    }
+                  }}
+                />
+              ) : (
+                <p className="text-muted text-center small">Tidak ada data</p>
+              )}
+            </div>
+          </Card>
+        </Col>
+
+        {/* TOP COURSES */}
+        <Col md={6}>
           <Card className="p-3 shadow-sm">
             <h5 className="text-center mb-3">Top 5 Kursus</h5>
-            <div style={{ height: "350px" }}>
+            <div style={{ height: "300px" }}>
               {stats?.top_courses?.length ? (
                 <Bar
                   data={{
@@ -243,7 +314,7 @@ const Dashboard: React.FC = () => {
                         data: stats.top_courses.map(
                           (c: any) => c.progress_percentage ?? c.level
                         ),
-                        backgroundColor: "#93c5fd",
+                        backgroundColor: "#86efac",
                       },
                     ],
                   }}
@@ -260,6 +331,86 @@ const Dashboard: React.FC = () => {
                 <p className="text-muted text-center small">Tidak ada data</p>
               )}
             </div>
+          </Card>
+        </Col>
+      </Row>
+
+      {/* ACHIEVEMENTS & RECOMMENDATIONS */}
+      <Row className="mb-4">
+        {/* ACHIEVEMENTS */}
+        <Col md={6}>
+          <Card className="shadow-sm">
+            <Card.Header>
+              <h5 className="mb-0">🏆 Achievement & Badges</h5>
+            </Card.Header>
+            <Card.Body>
+              <Row>
+                <Col md={6} className="mb-3">
+                  <div className="text-center p-3 border rounded" style={{ background: "#fef3c7" }}>
+                    <h4 className="mb-1">📚</h4>
+                    <strong>{stats?.cards?.completed || 0}</strong>
+                    <p className="mb-0 small text-muted">Course Completed</p>
+                  </div>
+                </Col>
+                <Col md={6} className="mb-3">
+                  <div className="text-center p-3 border rounded" style={{ background: "#dbeafe" }}>
+                    <h4 className="mb-1">🎯</h4>
+                    <strong>{learningPaths.length}</strong>
+                    <p className="mb-0 small text-muted">Learning Paths</p>
+                  </div>
+                </Col>
+                <Col md={6} className="mb-3">
+                  <div className="text-center p-3 border rounded" style={{ background: "#dcfce7" }}>
+                    <h4 className="mb-1">⭐</h4>
+                    <strong>
+                      {stats?.cards?.total > 0
+                        ? Math.round(((stats?.cards?.completed || 0) / stats.cards.total) * 100)
+                        : 0}%
+                    </strong>
+                    <p className="mb-0 small text-muted">Completion Rate</p>
+                  </div>
+                </Col>
+                <Col md={6} className="mb-3">
+                  <div className="text-center p-3 border rounded" style={{ background: "#fce7f3" }}>
+                    <h4 className="mb-1">🔥</h4>
+                    <strong>{stats?.cards?.in_progress || 0}</strong>
+                    <p className="mb-0 small text-muted">Active Learning</p>
+                  </div>
+                </Col>
+              </Row>
+            </Card.Body>
+          </Card>
+        </Col>
+
+        {/* RECOMMENDATIONS */}
+        <Col md={6}>
+          <Card className="shadow-sm">
+            <Card.Header>
+              <h5 className="mb-0">💡 Rekomendasi Course</h5>
+            </Card.Header>
+            <Card.Body>
+              {recommendations.length > 0 ? (
+                <div style={{ maxHeight: "300px", overflowY: "auto" }}>
+                  {recommendations.slice(0, 5).map((rec: RecommendedCourse, idx: number) => (
+                    <div key={idx} className="mb-3 p-2 border rounded">
+                      <strong className="d-block">{rec.course_name}</strong>
+                      <small className="text-muted">
+                        {rec.reason || "Direkomendasikan untuk Anda"}
+                      </small>
+                      {rec.score && (
+                        <div className="mt-1">
+                          <small className="text-primary">
+                            Score: {rec.score.toFixed(1)}%
+                          </small>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-muted text-center small">Belum ada rekomendasi</p>
+              )}
+            </Card.Body>
           </Card>
         </Col>
       </Row>
