@@ -96,6 +96,44 @@ export const resourcesApi = {
     const response = await api.post('/progress/update', progressData);
     return response.data.data;
   },
+
+  // Mark material as completed
+  markMaterialComplete: async (data: {
+    email: string;
+    course_name: string;
+    tutorial_title: string;
+  }) => {
+    const response = await api.post('/progress/material/complete', data);
+    return response.data;
+  },
+
+  // Get material completion status for a course
+  getMaterialStatus: async (email: string, course_name: string) => {
+    const response = await api.get('/progress/material/status', {
+      params: { email, course_name },
+    });
+    return response.data.data || {};
+  },
+
+  // Check if all materials are completed
+  checkAllMaterialsCompleted: async (email: string, course_name: string) => {
+    const response = await api.get('/progress/material/check-all-completed', {
+      params: { email, course_name },
+    });
+    return response.data.data;
+  },
+
+  // Track learning behavior for ML
+  trackLearningBehavior: async (data: {
+    email: string;
+    course_name: string;
+    tutorial_title: string;
+    action: string;
+    metadata?: any;
+  }) => {
+    const response = await api.post('/progress/material/track-learning', data);
+    return response.data;
+  },
 };
 
 

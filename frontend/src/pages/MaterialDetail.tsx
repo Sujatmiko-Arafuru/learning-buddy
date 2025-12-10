@@ -7,9 +7,11 @@ import {
   FaClock,
   FaUserGraduate,
   FaHome,
+  FaCheckCircle,
 } from "react-icons/fa";
 import Container from "../components/layout/Container";
 import { learningPathApi, MaterialContent } from "../api/learningPath";
+import { resourcesApi } from "../api/resources";
 
 const MaterialDetail: React.FC = () => {
   const { courseName, tutorialTitle } = useParams<{
@@ -23,6 +25,10 @@ const MaterialDetail: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [material, setMaterial] = useState<MaterialContent | null>(null);
   const [error, setError] = useState("");
+  const [isCompleting, setIsCompleting] = useState(false);
+  const [isCompleted, setIsCompleted] = useState(false);
+
+  const email = localStorage.getItem("email") || "";
 
   useEffect(() => {
     if (!courseName || !tutorialTitle) {
@@ -44,6 +50,21 @@ const MaterialDetail: React.FC = () => {
         );
 
         setMaterial(materialData);
+
+        // Check if material is already completed
+        if (email) {
+          try {
+            const status = await resourcesApi.getMaterialStatus(
+              email,
+              decodedCourseName
+            );
+            if (status[decodedTutorialTitle]?.is_completed) {
+              setIsCompleted(true);
+            }
+          } catch (err) {
+            console.error("Error checking material status:", err);
+          }
+        }
       } catch (err: any) {
         console.error("Error loading material:", err);
         setError("Gagal memuat konten materi.");
@@ -63,7 +84,7 @@ const MaterialDetail: React.FC = () => {
     };
 
     loadMaterial();
-  }, [courseName, tutorialTitle, navigate]);
+  }, [courseName, tutorialTitle, navigate, email]);
 
   const formatContent = (content: string) => {
     // Simple markdown formatting
@@ -227,28 +248,120 @@ const MaterialDetail: React.FC = () => {
               </small>
             </div>
             <div className="d-flex gap-2">
+              {isCompleted && (
+                <Badge bg="success" className="d-flex align-items-center gap-1 px-3 py-2">
+                  <FaCheckCircle /> Selesai Dibaca
+                </Badge>
+              )}
               <Button
                 variant="outline-secondary"
-                onClick={() => {
+                onClick={async () => {
                   if (material.is_placeholder) {
                     alert(
                       "Ini adalah konten contoh. Konten asli sedang dikembangkan."
                     );
+                    return;
+                  }
+                  
+                  if (!email) {
+                    alert("Silakan login terlebih dahulu.");
+                    return;
+                  }
+
+                  try {
+                    setIsCompleting(true);
+                    const decodedCourseName = decodeURIComponent(courseName || "");
+                    const decodedTutorialTitle = decodeURIComponent(tutorialTitle || "");
+                    
+                    const result = await resourcesApi.markMaterialComplete({
+                      email,
+                      course_name: decodedCourseName,
+                      tutorial_title: decodedTutorialTitle,
+                    });
+
+                    if (!result.success) {
+                      throw new Error(result.error || "Gagal menandai materi");
+                    }
+
+                    // Track learning behavior (non-blocking)
+                    resourcesApi.trackLearningBehavior({
+                      email,
+                      course_name: decodedCourseName,
+                      tutorial_title: decodedTutorialTitle,
+                      action: "mark_as_read",
+                    }).catch(err => console.error("Error tracking behavior:", err));
+
+                    setIsCompleted(true);
+                    alert("Materi ditandai sebagai sudah dibaca!");
+                  } catch (err: any) {
+                    console.error("Error marking material:", err);
+                    const errorMessage = err.response?.data?.error || err.message || "Gagal menandai materi. Silakan coba lagi.";
+                    alert(errorMessage);
+                  } finally {
+                    setIsCompleting(false);
                   }
                 }}
+                disabled={isCompleting || isCompleted}
               >
-                Tandai Sudah Dibaca
+                {isCompleting ? "Menyimpan..." : "Tandai Sudah Dibaca"}
               </Button>
               <Button
                 variant="primary"
-                onClick={() => {
-                  const nextUrl = state?.fromCourse
-                    ? `/course/${courseName}`
-                    : "/dashboard";
-                  navigate(nextUrl);
+                onClick={async () => {
+                  if (!email) {
+                    alert("Silakan login terlebih dahulu.");
+                    return;
+                  }
+
+                  try {
+                    setIsCompleting(true);
+                    const decodedCourseName = decodeURIComponent(courseName || "");
+                    const decodedTutorialTitle = decodeURIComponent(tutorialTitle || "");
+                    
+                    // Mark as completed
+                    const result = await resourcesApi.markMaterialComplete({
+                      email,
+                      course_name: decodedCourseName,
+                      tutorial_title: decodedTutorialTitle,
+                    });
+
+                    if (!result.success) {
+                      throw new Error(result.error || "Gagal menyelesaikan materi");
+                    }
+
+                    // Track learning behavior (non-blocking)
+                    resourcesApi.trackLearningBehavior({
+                      email,
+                      course_name: decodedCourseName,
+                      tutorial_title: decodedTutorialTitle,
+                      action: "complete",
+                    }).catch(err => console.error("Error tracking behavior:", err));
+
+                    setIsCompleted(true);
+
+                    // Navigate to next page
+                    const nextUrl = state?.fromCourse
+                      ? `/course/${courseName}`
+                      : "/dashboard";
+                    navigate(nextUrl);
+                  } catch (err: any) {
+                    console.error("Error completing material:", err);
+                    const errorMessage = err.response?.data?.error || err.message || "Gagal menyelesaikan materi. Silakan coba lagi.";
+                    alert(errorMessage);
+                  } finally {
+                    setIsCompleting(false);
+                  }
                 }}
+                disabled={isCompleting}
               >
-                Selesai & Lanjut
+                {isCompleting ? (
+                  <>
+                    <Spinner animation="border" size="sm" className="me-2" />
+                    Menyimpan...
+                  </>
+                ) : (
+                  "Selesai & Lanjut"
+                )}
               </Button>
             </div>
           </div>

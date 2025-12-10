@@ -12,7 +12,11 @@ load_dotenv()
 
 # Init Flask App
 app = Flask(__name__)
-CORS(app)  # Enable CORS for React frontend
+# Enable CORS for React frontend with explicit configuration
+CORS(app, 
+     resources={r"/api/*": {"origins": "*"}},
+     supports_credentials=True,
+     allow_headers=["Content-Type", "Authorization"])
 
 # Configuration
 app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'dev-secret-key-change-in-production')
@@ -87,7 +91,23 @@ if __name__ == '__main__':
     print()
 
     try:
-        app.run(host='0.0.0.0', port=port, debug=True)
+        # On Windows, the reloader can cause issues with system library changes
+        # Disable reloader but keep debug mode for better error messages
+        # Set FLASK_ENV=development in .env if you want auto-reload (but it may cause issues)
+        use_reloader = os.getenv('FLASK_USE_RELOADER', 'false').lower() == 'true'
+        
+        if use_reloader:
+            print("[INFO] Auto-reloader enabled (may cause issues on Windows)")
+        else:
+            print("[INFO] Auto-reloader disabled (recommended for Windows)")
+            print("[INFO] Restart server manually after code changes")
+        
+        app.run(
+            host='0.0.0.0', 
+            port=port, 
+            debug=True,  # Keep debug for better error messages
+            use_reloader=use_reloader  # Disable by default on Windows
+        )
     except OSError as e:
         if "Address already in use" in str(e) or "address is already in use" in str(e).lower():
             print(f"\n[ERROR] Port {port} is already in use!")

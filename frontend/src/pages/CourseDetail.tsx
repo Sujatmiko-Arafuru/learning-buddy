@@ -21,6 +21,7 @@ import {
 import Container from "../components/layout/Container";
 import { learningPathApi, TutorialByCourse, Course } from "../api/learningPath";
 import { examApi, ExamStatus } from "../api/exam";
+import { resourcesApi } from "../api/resources";
 
 // Extend interface for local use
 interface ExtendedTutorial extends TutorialByCourse {
@@ -37,6 +38,8 @@ const CourseDetail: React.FC = () => {
   const [tutorials, setTutorials] = useState<ExtendedTutorial[]>([]);
   const [course, setCourse] = useState<Course | null>(null);
   const [error, setError] = useState("");
+  const [materialStatus, setMaterialStatus] = useState<Record<string, { is_completed: boolean; completed_at?: string }>>({});
+  const [allMaterialsCompleted, setAllMaterialsCompleted] = useState(false);
 
   const email = localStorage.getItem("email") || "";
 
@@ -139,6 +142,23 @@ const CourseDetail: React.FC = () => {
         setTutorials(tutorialsWithStatus);
         setCourse(courseData);
 
+        // Load material completion status
+        if (email) {
+          try {
+            const status = await resourcesApi.getMaterialStatus(email, decodedName);
+            setMaterialStatus(status);
+
+            // Check if all materials are completed
+            const completionCheck = await resourcesApi.checkAllMaterialsCompleted(
+              email,
+              decodedName
+            );
+            setAllMaterialsCompleted(completionCheck.all_completed || false);
+          } catch (err) {
+            console.error("Error loading material status:", err);
+          }
+        }
+
         if (finalTutorials.length === 0) {
           setError("Belum ada materi tersedia untuk kursus ini.");
         }
@@ -153,7 +173,7 @@ const CourseDetail: React.FC = () => {
     loadCourseData();
   }, [courseName, navigate, email]);
 
-  const handleMaterialClick = (
+  const handleMaterialClick = async (
     title: string | undefined,
     examStatus?: ExamStatus
   ) => {
@@ -163,6 +183,27 @@ const CourseDetail: React.FC = () => {
     const isExam = isUjianAkhir(title);
 
     if (isExam) {
+      // Check if all materials are completed before allowing exam
+      if (!allMaterialsCompleted && email) {
+        try {
+          const completionCheck = await resourcesApi.checkAllMaterialsCompleted(
+            email,
+            decodeURIComponent(courseName)
+          );
+          if (!completionCheck.all_completed) {
+            alert(
+              `Anda belum menyelesaikan semua materi. Selesaikan ${completionCheck.remaining_materials} materi lagi sebelum mengerjakan ujian.`
+            );
+            return;
+          }
+          setAllMaterialsCompleted(true);
+        } catch (err) {
+          console.error("Error checking completion:", err);
+          alert("Gagal memverifikasi status materi. Silakan coba lagi.");
+          return;
+        }
+      }
+
       // If exam already completed, navigate to result page
       if (examStatus?.exam_completed) {
         navigate(`/exam/${encodeURIComponent(courseName)}/result`, {
@@ -189,10 +230,18 @@ const CourseDetail: React.FC = () => {
 
   const getMaterialBadge = (tutorial: ExtendedTutorial) => {
     if (!tutorial.is_exam) {
+      const isCompleted = materialStatus[tutorial.tutorial_title || ""]?.is_completed;
       return (
-        <Button variant="outline-primary" size="sm">
-          Baca Materi
-        </Button>
+        <div className="d-flex flex-column align-items-end gap-1">
+          {isCompleted && (
+            <Badge bg="success" className="d-flex align-items-center gap-1">
+              <FaCheckCircle /> Selesai Dibaca
+            </Badge>
+          )}
+          <Button variant="outline-primary" size="sm">
+            {isCompleted ? "Baca Lagi" : "Baca Materi"}
+          </Button>
+        </div>
       );
     }
 
@@ -246,6 +295,19 @@ const CourseDetail: React.FC = () => {
         );
       }
     } else {
+      // Check if all materials are completed before enabling exam
+      if (!allMaterialsCompleted) {
+        return (
+          <div className="d-flex flex-column align-items-end">
+            <Button variant="secondary" size="sm" disabled>
+              Mulai Ujian
+            </Button>
+            <small className="text-muted mt-1" style={{ fontSize: "0.7rem" }}>
+              Selesaikan semua materi terlebih dahulu
+            </small>
+          </div>
+        );
+      }
       return (
         <Button variant="warning" size="sm">
           Mulai Ujian
@@ -400,10 +462,15 @@ const CourseDetail: React.FC = () => {
                       {index + 1}
                     </div>
                     <div>
-                      <div className="d-flex align-items-center">
+                      <div className="d-flex align-items-center gap-2">
                         <h6 className="mb-1">
                           {item.tutorial_title || "Materi"}
                         </h6>
+                        {materialStatus[item.tutorial_title || ""]?.is_completed && (
+                          <Badge bg="success" className="d-flex align-items-center gap-1">
+                            <FaCheckCircle /> Selesai
+                          </Badge>
+                        )}
                       </div>
                       {item.learning_path_name && (
                         <small className="text-muted d-block">
@@ -412,9 +479,7 @@ const CourseDetail: React.FC = () => {
                       )}
                     </div>
                   </div>
-                  <Button variant="outline-primary" size="sm">
-                    Baca
-                  </Button>
+                  {getMaterialBadge(item)}
                 </ListGroup.Item>
               ))}
             </ListGroup>
@@ -467,8 +532,11 @@ const CourseDetail: React.FC = () => {
                     </div>
                     {!examTutorial.exam_status?.exam_completed && (
                       <p className="mt-2 mb-0 small text-muted">
-                        ⚠ Pastikan Anda sudah mempelajari semua materi sebelum
-                        mengerjakan ujian
+                        {allMaterialsCompleted ? (
+                          "✅ Semua materi sudah selesai. Anda dapat mengerjakan ujian sekarang."
+                        ) : (
+                          "⚠ Pastikan Anda sudah mempelajari semua materi sebelum mengerjakan ujian"
+                        )}
                       </p>
                     )}
                   </div>
