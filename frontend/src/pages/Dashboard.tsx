@@ -15,7 +15,6 @@ import Container from "../components/layout/Container";
 
 // API
 import { resourcesApi } from "../api/resources";
-import { recommendationApi, RecommendedCourse } from "../api/recommendation";
 import { learningPathApi, LearningPath, Course } from "../api/learningPath";
 import { usersApi } from "../api/users";
 
@@ -49,7 +48,6 @@ const Dashboard: React.FC = () => {
 
   const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState<any>(null);
-  const [recommendations, setRecommendations] = useState<RecommendedCourse[]>([]);
   const [learningPaths, setLearningPaths] = useState<LearningPath[]>([]);
   const [courses, setCourses] = useState<Course[]>([]);
   const [learningDataLoading, setLearningDataLoading] = useState(true);
@@ -136,9 +134,8 @@ const Dashboard: React.FC = () => {
         selectedLpIds = user?.preferences?.selected_learning_path_ids;
       } catch {}
 
-      const [dashboardStats, recs, lpData, courseData] = await Promise.all([
+      const [dashboardStats, lpData, courseData] = await Promise.all([
         resourcesApi.getDashboardStats(userEmail!), 
-        recommendationApi.getRecommendations(userEmail!),
         learningPathApi.getLearningPaths(),
         learningPathApi.getCourses(undefined, selectedLpIds),
       ]);
@@ -149,7 +146,6 @@ const Dashboard: React.FC = () => {
       console.log('[DASHBOARD] Total Courses:', dashboardStats?.data?.cards?.total);
 
       setStats(dashboardStats.data);
-      setRecommendations(recs.recommended_courses || []);
 
       if (selectedLpIds?.length) {
         setLearningPaths(
@@ -335,31 +331,30 @@ const Dashboard: React.FC = () => {
         </Col>
       </Row>
 
-      {/* ACHIEVEMENTS & RECOMMENDATIONS */}
+      {/* ACHIEVEMENTS */}
       <Row className="mb-4">
-        {/* ACHIEVEMENTS */}
-        <Col md={6}>
+        <Col md={12}>
           <Card className="shadow-sm">
             <Card.Header>
               <h5 className="mb-0">🏆 Achievement & Badges</h5>
             </Card.Header>
             <Card.Body>
               <Row>
-                <Col md={6} className="mb-3">
+                <Col md={3} className="mb-3">
                   <div className="text-center p-3 border rounded" style={{ background: "#fef3c7" }}>
                     <h4 className="mb-1">📚</h4>
                     <strong>{stats?.cards?.completed || 0}</strong>
                     <p className="mb-0 small text-muted">Course Completed</p>
                   </div>
                 </Col>
-                <Col md={6} className="mb-3">
+                <Col md={3} className="mb-3">
                   <div className="text-center p-3 border rounded" style={{ background: "#dbeafe" }}>
                     <h4 className="mb-1">🎯</h4>
                     <strong>{learningPaths.length}</strong>
                     <p className="mb-0 small text-muted">Learning Paths</p>
                   </div>
                 </Col>
-                <Col md={6} className="mb-3">
+                <Col md={3} className="mb-3">
                   <div className="text-center p-3 border rounded" style={{ background: "#dcfce7" }}>
                     <h4 className="mb-1">⭐</h4>
                     <strong>
@@ -370,7 +365,7 @@ const Dashboard: React.FC = () => {
                     <p className="mb-0 small text-muted">Completion Rate</p>
                   </div>
                 </Col>
-                <Col md={6} className="mb-3">
+                <Col md={3} className="mb-3">
                   <div className="text-center p-3 border rounded" style={{ background: "#fce7f3" }}>
                     <h4 className="mb-1">🔥</h4>
                     <strong>{stats?.cards?.in_progress || 0}</strong>
@@ -378,38 +373,6 @@ const Dashboard: React.FC = () => {
                   </div>
                 </Col>
               </Row>
-            </Card.Body>
-          </Card>
-        </Col>
-
-        {/* RECOMMENDATIONS */}
-        <Col md={6}>
-          <Card className="shadow-sm">
-            <Card.Header>
-              <h5 className="mb-0">💡 Rekomendasi Course</h5>
-            </Card.Header>
-            <Card.Body>
-              {recommendations.length > 0 ? (
-                <div style={{ maxHeight: "300px", overflowY: "auto" }}>
-                  {recommendations.slice(0, 5).map((rec: RecommendedCourse, idx: number) => (
-                    <div key={idx} className="mb-3 p-2 border rounded">
-                      <strong className="d-block">{rec.course_name}</strong>
-                      <small className="text-muted">
-                        {rec.reason || "Direkomendasikan untuk Anda"}
-                      </small>
-                      {rec.score && (
-                        <div className="mt-1">
-                          <small className="text-primary">
-                            Score: {rec.score.toFixed(1)}%
-                          </small>
-                        </div>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <p className="text-muted text-center small">Belum ada rekomendasi</p>
-              )}
             </Card.Body>
           </Card>
         </Col>
@@ -489,53 +452,6 @@ const Dashboard: React.FC = () => {
         </Card.Body>
       </Card>
 
-      {/* REKOMENDASI */}
-      <Card className="shadow-sm">
-        <Card.Header>
-          <h5 className="mb-0">Rekomendasi Kursus untuk Anda</h5>
-        </Card.Header>
-
-        <Card.Body>
-          {recommendations.length === 0 ? (
-            <Alert variant="info">Belum ada rekomendasi.</Alert>
-          ) : (
-            <Row>
-              {recommendations.slice(0, 6).map((course, idx) => (
-                <Col md={4} key={idx} className="mb-3">
-                  <Card>
-                    <Card.Body>
-                      <h6>{course.course_name}</h6>
-                      <p className="text-muted small mb-2">
-                        Level: {course.level} • {course.hours} jam
-                      </p>
-                      <p className="small text-info">{course.reason}</p>
-
-                      <div className="d-flex justify-content-between align-items-center">
-                        <small className="text-muted">
-                          Skor: {course.score.toFixed(1)}
-                        </small>
-                        <Button 
-                          variant="primary" 
-                          size="sm"
-                          onClick={() => {
-                            if (course.course_name) {
-                              navigate(`/course/${encodeURIComponent(course.course_name)}`, {
-                                state: { fromDashboard: true, fromRecommendation: true }
-                              });
-                            }
-                          }}
-                        >
-                          Lihat Detail
-                        </Button>
-                      </div>
-                    </Card.Body>
-                  </Card>
-                </Col>
-              ))}
-            </Row>
-          )}
-        </Card.Body>
-      </Card>
     </Container>
   );
 };
